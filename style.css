@@ -252,3 +252,24 @@ textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;
   .board{grid-template-columns:repeat(4,82vw)}
   .search{min-width:100%}
 }
+
+/* bloc Enlèvement, livraison & compte */
+.acc{padding:14px 14px 10px}
+.acc-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:8px 0;border-top:1px solid var(--line2);font-size:13px}
+.acc-row:first-of-type{border-top:0}
+.acc-row.acc-col{flex-direction:column;align-items:flex-start;gap:2px}
+.acc-row .lbl{color:var(--muted);flex-shrink:0;max-width:45%}
+.acc-row .val{text-align:right;font-weight:500}
+.acc-row.acc-col .val{text-align:left}
+.val.big{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+.pen{border:0;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0 2px}
+.pen:hover{color:var(--primary)}
+.inline-in{border:1px solid var(--line);background:var(--surface2);border-radius:9px;padding:9px 12px;text-align:right;min-width:210px;font-weight:500}
+.inline-in:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft);background:#fff}
+.st-change{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;font-weight:400;color:var(--muted)}
+.st-change select,.st-change input{border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:var(--surface);color:var(--text)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.acc-foot{border-top:1px solid var(--line2);padding-top:8px;margin-top:2px}
+@media (max-width:860px){.acc-row{flex-direction:column;align-items:flex-start;gap:4px}.acc-row .lbl{max-width:none}.acc-row .val{text-align:left}.st-change{justify-content:flex-start}.inline-in{text-align:left;width:100%}}
+.st-change select{max-width:200px}
+.st-change input[type=date]{width:140px}

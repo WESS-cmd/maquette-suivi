@@ -38,7 +38,7 @@ window.CARRIERS = {
     ["Boots UK", "NG90", "Nottingham", "Royaume-Uni"], ["Clinique Saint-Jean", "34000", "Montpellier", "France"]
   ];
   const prestas = {
-    "TNT": ["13:00 Express", "Express (journée)", "Express National"], "UPS": ["F éco", "UPS Express Saver", "F 13 h"],
+    "TNT": ["13:00 Express", "Express (journée)", "Express National"], "UPS": ["F éco", "Express Saver", "F 13 h"],
     "Chronopost": ["Chrono 13", "Chrono 18", "Chrono Relais"], "DHL Express": ["Express Worldwide"],
     "FedEx": ["International Priority"], "DPD": ["Predict"], "MTI Express": ["Course express", "Coursier 2 h"]
   };
@@ -95,7 +95,13 @@ window.CARRIERS = {
     const prio = al.some(a => a.lv === "crit") ? 2 : al.some(a => a.lv === "warn") ? 1 : 0;
     const dossier = prio ? pick(["Non lu", "Non lu", "En cours", "—"]) : pick(["—", "—", "Terminé"]);
 
+    const rues = ["42 chemin du Moulin Carron", "9 place Marie-Jeanne Bassot", "13 avenue Morane Saulnier", "3 avenue du Général Leclerc", "48 route de Saint-Bonnet-de-Mûre", "7 rue Antoine Coulibaly", "26 rue du Tanin", "1 rue des Vendanges"];
+    const contacts = ["Samira RIABI", "Service informatique", "Accueil", "M. Rey", "Réception marchandises", "Océane PIVOTEAU", "Service achats", "Song Nam TRAN"];
+    const depAdr = pick(rues), livAdr = pick(rues), depCt = pick(contacts), livCt = pick(contacts);
+    const tel = "0" + (1 + Math.floor(rnd() * 5)) + " " + Array.from({ length: 4 }, () => String(Math.floor(rnd() * 100)).padStart(2, "0")).join(" ");
+    const sousCompte = pick([depCt, "BC-" + (40000 + Math.floor(rnd() * 9999)), "CDE " + (100 + Math.floor(rnd() * 900)), ""]);
     out.push({
+      depAdr, livAdr, depCt, livCt, tel, sousCompte,
       id: i, bord, ref, client: c[0], sub: c[1], dep: { nom: c[2], cp: c[3], ville: c[4] }, ext,
       liv: { nom: d[0], cp: d[1], ville: d[2], pays: d[3] }, carrier, presta: pick(prestas[carrier]),
       ramasse: pick1, lastScanH, statut, tags, colis, al, prio, dossier, ht: +(10 + rnd() * 180).toFixed(2),

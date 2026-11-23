@@ -212,13 +212,23 @@
     const B = $("#d-body");
     const stepper = `<div class="stepper">${STEPS.map((st, i) => `<div class="step ${i < s.n ? "d" : ""} ${i === s.n - 1 ? "cur" : ""} ${e.statut === "anomalie" && i === s.n - 1 ? "x" : ""}"><b></b>${st}</div>`).join("")}</div>`;
     const alerts = e.al.filter(a => a.lv !== "info").map(a => `<div class="alert-box ${a.lv === "warn" ? "warn" : ""}"><b>${esc(a.t)}</b>Dernier événement : ${ago(e.lastScanH)}.<div class="acts"><button class="btn sm primary">${esc(a.a)}</button><button class="btn sm">Prévenir le client</button><button class="btn sm">Ajouter un commentaire</button></div></div>`).join("");
+    const fmtAdr = (nom, ct, adr, cp, ville, pays) => [nom, ct, adr, `${cp} ${ville}`, pays].filter(Boolean).map(esc).join(" · ");
+    const priseD = e.statut === "attente" ? new Date(e.ramasse.getTime() + 864e5) : e.ramasse;
+    const STATUTS = ["En attente de prise en charge", "Pris en charge", "En transit", "En cours de livraison", "Livré", "Livré en point relais", "Anomalie", "Retour expéditeur", "Annulé"];
     if (tab === "apercu") B.innerHTML = `${stepper}${alerts}
-      <div class="two">
-        <div class="box"><h3>Enlèvement</h3><b>${esc(e.dep.nom)}</b><div class="muted">${esc(e.dep.cp)} ${esc(e.dep.ville)}</div>${e.ext ? `<span class="tag ext">Départ extérieur — chez le client</span>` : `<span class="tag">Départ MTI</span>`}<div class="muted" style="margin-top:8px">${e.statut === "attente" ? "Bordereau créé le" : "Ramassé le"} ${fmtDT(e.ramasse)}</div></div>
-        <div class="box"><h3>Livraison</h3><b>${esc(e.liv.nom)}</b><div class="muted">${esc(e.liv.cp)} ${esc(e.liv.ville)} · ${esc(e.liv.pays)}</div><div class="muted" style="margin-top:8px">${e.statut === "livre" ? "Livré" : (() => { const d = new Date(e.ramasse.getTime() + 2 * 864e5); return d < NOW ? `<span class="st crit">Livraison prévue le ${fmtD(d)} — dépassée</span>` : "Livraison prévue : " + fmtD(d); })()}</div></div>
+      <div class="box acc">
+        <h3>Enlèvement, livraison &amp; compte</h3>
+        <div class="acc-row acc-col"><span class="lbl">Client (payeur)</span><span class="val big">${esc(e.client)} <button class="pen" title="Changer le payeur">✎</button></span></div>
+        <div class="acc-row"><span class="lbl">Sous-compte / Référence / N° de commande</span><input class="inline-in" value="${esc(e.sousCompte)}" placeholder="Saisir…"></div>
+        <div class="acc-row"><span class="lbl">Enlèvement</span><span class="val">${fmtAdr(e.dep.nom, e.depCt, e.depAdr, e.dep.cp, e.dep.ville, "France")}${e.ext ? ` <span class="tag ext">Extérieur</span>` : ""}</span></div>
+        <div class="acc-row"><span class="lbl">Livraison</span><span class="val">${fmtAdr(e.liv.nom, e.livCt, e.livAdr, e.liv.cp, e.liv.ville, e.liv.pays)}</span></div>
+        <div class="acc-row"><span class="lbl">Tél. destinataire</span><span class="val">${e.tel}</span></div>
+        <div class="acc-row"><span class="lbl">Prise en charge</span><span class="val">${priseD.toLocaleDateString("fr-FR")}${e.statut === "attente" ? " (prévue)" : ""}</span></div>
+        <div class="acc-row"><span class="lbl">Changer le statut</span><span class="val st-change"><select id="st-sel"><option value="">Choisir…</option>${STATUTS.map(s => `<option>${s}</option>`).join("")}</select> au <input type="date" value="2026-11-23"> <button class="btn sm primary" id="st-apply" disabled>Appliquer</button></span></div>
+        <div class="acc-foot"><button class="link mono">${esc(e.bord)}</button> <span class="muted" style="font-size:12px">envoi</span>${e.colis > 1 ? ` <span class="muted" style="font-size:12px">· ${e.colis} colis</span>` : ""}</div>
       </div>
       <div class="box"><h3>En bref</h3><dl class="kv">
-        <dt>Compte payeur</dt><dd>${esc(e.client)}</dd><dt>Colis</dt><dd>${e.colis} · ${e.poids}</dd><dt>Contenu</dt><dd>${esc(e.contenu)}</dd>
+        <dt>Transporteur</dt><dd>${esc(e.carrier)} · ${esc(e.presta)}</dd><dt>Colis</dt><dd>${e.colis} · ${e.poids}</dd><dt>Contenu</dt><dd>${esc(e.contenu)}</dd>
         <dt>Assurance</dt><dd>${e.tags.find(t => t[0] === "ass")?.[1] || "Non assuré"}</dd><dt>Facturation</dt><dd>${e.ht.toFixed(2)} € HT</dd><dt>Dossier</dt><dd>${esc(e.dossier)}</dd>
       </dl></div>`;
     if (tab === "suivi") B.innerHTML = `<div class="box"><h3>Réponses du transporteur</h3><ul class="tl">${ev.map((x, i) => `<li class="${i === 0 ? "first" : ""} ${x.bad ? "bad" : ""}"><span class="t">${fmtDT(x.d)}</span><span class="b"></span><span>${esc(x.txt)}<div class="loc">${esc(x.loc)}</div></span></li>`).join("")}</ul></div>
@@ -229,7 +239,9 @@
       <div class="box"><h3>Demande liée</h3><dl class="kv"><dt>Origine</dt><dd>Portail client</dd><dt>Statut</dt><dd>Confirmée</dd></dl></div>`;
     if (tab === "docs") B.innerHTML = `<div class="files"><div class="file"><b>Bordereau / étiquette</b>PDF · imprimer</div><div class="file"><b>Photos du colis</b>Ajouter</div><div class="file"><b>Preuve de livraison</b>${e.statut === "livre" ? "Disponible" : "—"}</div><div class="file"><b>Pièces conservées</b>Facture client</div><div class="file"><b>Signature</b>${e.statut === "livre" ? "Signé" : "—"}</div><div class="file"><b>Mails</b>0 échange</div></div>`;
     if (tab === "cmt") B.innerHTML = `<div class="box"><h3>Commentaires internes</h3><div class="cmt"><div class="w">Suivi · hier 15:12</div>Relance faite par mail au transporteur, en attente de retour.</div><textarea placeholder="Ajouter un commentaire visible par l'équipe…"></textarea><div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button class="btn sm primary">Ajouter</button><label class="muted" style="font-size:12px"><input type="checkbox"> Visible par le client</label></div></div>`;
-    $$("#d-body .btn").forEach(b => b.onclick = () => toast(b.textContent));
+    $$("#d-body .btn, #d-body .link, #d-body .pen").forEach(b => b.onclick = () => toast(b.textContent.trim() === "✎" ? "Changer le client payeur" : b.textContent));
+    const sel = $("#st-sel");
+    if (sel) { sel.onchange = () => $("#st-apply").disabled = !sel.value; $("#st-apply").onclick = () => toast(`Statut « ${sel.value} » appliqué`); }
     openDrawer();
   }
 
