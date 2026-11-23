@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Suivi des envois & Enlèvements extérieurs · MTI Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- Barre latérale -->
+  <aside class="side" id="side">
+    <div class="brand"><span class="logo">MTI<small>EXPRESS</small></span><span class="bo">BackOffice</span></div>
+    <div class="side-sec">Opérations</div>
+    <a class="nav" data-go="none">Dépôt (ex Ramassages)</a>
+    <a class="nav" data-go="none">Demandes &amp; Devis</a>
+    <a class="nav" data-go="none">Expéditions, Courses…</a>
+    <a class="nav" data-go="suivi" id="nav-suivi">Suivi des envois <span class="nb red" id="nav-suivi-nb">0</span></a>
+    <a class="nav" data-go="enlev" id="nav-enlev">Enlèvements extérieurs <span class="nb" id="nav-enlev-nb">0</span></a>
+    <a class="nav" data-go="none">Suivi flotte</a>
+    <a class="nav" data-go="none">Tournées MTI</a>
+    <a class="nav" data-go="none">Suivis &amp; Réclam.</a>
+    <div class="side-foot">Maquette · données fictives</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <button class="icon-btn only-m" id="burger" aria-label="Menu">☰</button>
+      <div class="gsearch"><span>⌕</span><input id="gsearch" placeholder="Rechercher partout — bordereau, réf. MTI, client, CP…"><kbd>Ctrl K</kbd></div>
+      <span class="live">● Live</span>
+      <span class="clock" id="clock"></span>
+    </header>
+
+    <!-- ===================== PAGE SUIVI ===================== -->
+    <section class="page" id="page-suivi">
+      <div class="ph">
+        <div>
+          <h1>Suivi des envois</h1>
+          <p class="sub">Ce qu'il faut traiter d'abord, en un coup d'œil. Cliquez sur un compteur pour filtrer.</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn ghost" id="btn-export">⤓ Exporter</button>
+          <button class="btn ghost">Réglages</button>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="toolbar">
+        <div class="search"><span>⌕</span><input id="q" placeholder="Bordereau, réf. MTI, client, ville ou CP — la liste se filtre pendant la frappe"></div>
+        <div class="chips" id="carrier-chips"></div>
+        <button class="btn ghost sm" id="more-filters">Plus de filtres <span class="dot-count" id="mf-count" hidden></span></button>
+      </div>
+      <div class="more" id="more" hidden>
+        <label>Client <select id="f-client"><option value="">Tous</option></select></label>
+        <label>Dossier <select id="f-dossier"><option value="">Tous</option><option>Non lu</option><option>En cours</option><option>Terminé</option></select></label>
+        <label>Contenu <select id="f-contenu"><option value="">Tous</option><option>Marchandise</option><option>Document</option><option>Batterie lithium</option></select></label>
+        <label>Ramassé du <input type="date" id="f-du"></label>
+        <label>au <input type="date" id="f-au"></label>
+        <label class="ck"><input type="checkbox" id="f-ext"> Départ extérieur</label>
+        <label class="ck"><input type="checkbox" id="f-payeur"> Sans payeur</label>
+        <label class="ck"><input type="checkbox" id="f-annule"> Bordereaux annulés</label>
+        <button class="link" id="reset">Réinitialiser</button>
+      </div>
+
+      <div class="views">
+        <div class="tabs" id="views"></div>
+        <div class="right">
+          <span class="muted" id="count"></span>
+          <label class="sort">Tri <select id="sort"><option value="urgence">Urgence</option><option value="scan">Dernier scan</option><option value="date">Date de ramassage</option><option value="client">Client</option></select></label>
+        </div>
+      </div>
+
+      <div class="bulk" id="bulk" hidden>
+        <b id="bulk-n">0</b> sélectionné(s)
+        <button class="btn sm">Rafraîchir le suivi</button>
+        <button class="btn sm">Demander la preuve</button>
+        <button class="btn sm">Déplacer dans un dossier</button>
+        <button class="link" id="bulk-clear">Annuler</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="grid" id="grid">
+          <thead><tr>
+            <th class="w-ck"><input type="checkbox" id="ck-all" aria-label="Tout sélectionner"></th>
+            <th>Envoi</th>
+            <th>Client</th>
+            <th>Trajet</th>
+            <th>Transporteur</th>
+            <th>Avancement</th>
+            <th>À faire</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>Aucun envoi ne correspond. <button class="link" id="empty-reset">Effacer les filtres</button></div>
+      </div>
+      <div class="legend">
+        <span><i class="bar crit"></i> À traiter en priorité</span>
+        <span><i class="bar warn"></i> À surveiller</span>
+        <span><i class="bar ok"></i> Normal</span>
+        <span class="muted">· La couleur du transporteur est sur la pastille, plus sur toute la ligne.</span>
+      </div>
+    </section>
+
+    <!-- ===================== PAGE ENLÈVEMENTS EXTÉRIEURS ===================== -->
+    <section class="page" id="page-enlev" hidden>
+      <div class="ph">
+        <div>
+          <h1>Enlèvements extérieurs</h1>
+          <p class="sub">Colis ramassés directement chez le client ou un tiers par le transporteur (TNT, UPS, DHL…), sans passer par MTI.</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn primary" id="btn-new-enl">+ Nouvel enlèvement</button>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis-enl"></div>
+
+      <div class="toolbar">
+        <div class="search"><span>⌕</span><input id="qe" placeholder="N° d'enlèvement, client, ville, bordereau…"></div>
+        <div class="chips" id="carrier-chips-e"></div>
+        <div class="seg" id="mode">
+          <button data-m="board" class="on">Tableau</button>
+          <button data-m="list">Liste</button>
+        </div>
+      </div>
+
+      <div class="days" id="days"></div>
+
+      <div class="board" id="board"></div>
+      <div class="table-wrap" id="elist" hidden>
+        <table class="grid">
+          <thead><tr><th>Date / créneau</th><th>N° d'enlèvement</th><th>Client</th><th>Lieu d'enlèvement</th><th>Transporteur</th><th>Colis</th><th>Confirmation</th><th>État</th></tr></thead>
+          <tbody id="erows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Panneau de détail -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="dh">
+      <div>
+        <div class="dref" id="d-ref"></div>
+        <div class="dsub" id="d-sub"></div>
+      </div>
+      <button class="icon-btn" id="d-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="dactions" id="d-actions"></div>
+    <div class="dtabs" id="d-tabs"></div>
+    <div class="dbody" id="d-body"></div>
+  </aside>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
