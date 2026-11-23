@@ -30,6 +30,7 @@
       <button class="icon-btn only-m" id="burger" aria-label="Menu">☰</button>
       <div class="gsearch"><span>⌕</span><input id="gsearch" placeholder="Rechercher partout — bordereau, réf. MTI, client, CP…"><kbd>Ctrl K</kbd></div>
       <span class="live">● Live</span>
+      <button class="btn ghost sm" id="kb-btn" title="Raccourcis clavier (?)">⌨ Raccourcis</button>
       <span class="clock" id="clock"></span>
     </header>
 
@@ -65,19 +66,26 @@
         <button class="link" id="reset">Réinitialiser</button>
       </div>
 
+      <div class="relance" id="relance"></div>
+      <div class="saved" id="saved"></div>
+
       <div class="views">
         <div class="tabs" id="views"></div>
         <div class="right">
           <span class="muted" id="count"></span>
+          <div class="seg seg-sm" id="density" title="Densité de la liste"><button data-d="aere" class="on">Aéré</button><button data-d="compact">Compact</button></div>
           <label class="sort">Tri <select id="sort"><option value="urgence">Urgence</option><option value="scan">Dernier scan</option><option value="date">Date de ramassage</option><option value="client">Client</option></select></label>
         </div>
       </div>
 
       <div class="bulk" id="bulk" hidden>
         <b id="bulk-n">0</b> sélectionné(s)
-        <button class="btn sm">Rafraîchir le suivi</button>
-        <button class="btn sm">Demander la preuve</button>
-        <button class="btn sm">Déplacer dans un dossier</button>
+        <button class="btn sm" data-b="refresh">Rafraîchir le suivi</button>
+        <button class="btn sm" data-b="preuve">Demander la preuve</button>
+        <button class="btn sm" data-b="dossier">Déplacer dans un dossier</button>
+        <button class="btn sm" data-b="valider">Valider la facturation</button>
+        <button class="btn sm" data-b="nofact">Ne pas facturer</button>
+        <button class="btn sm primary" data-b="lock">★ Clôturer</button>
         <button class="link" id="bulk-clear">Annuler</button>
       </div>
 
@@ -85,6 +93,7 @@
         <table class="grid" id="grid">
           <thead><tr>
             <th class="w-ck"><input type="checkbox" id="ck-all" aria-label="Tout sélectionner"></th>
+            <th class="w-st" title="Clôturé — verrouillé">★</th>
             <th>Envoi</th>
             <th>Client</th>
             <th>Trajet</th>
@@ -100,6 +109,7 @@
         <span><i class="bar crit"></i> À traiter en priorité</span>
         <span><i class="bar warn"></i> À surveiller</span>
         <span><i class="bar ok"></i> Normal</span>
+        <span><b style="color:#ca8a04">★</b> Clôturé : envoi fini, verrouillé</span>
         <span class="muted">· La couleur du transporteur est sur la pastille, plus sur toute la ligne.</span>
       </div>
     </section>
@@ -124,10 +134,13 @@
         <div class="seg" id="mode">
           <button data-m="board" class="on">Tableau</button>
           <button data-m="list">Liste</button>
+          <button data-m="ville">Par ville</button>
         </div>
       </div>
 
+      <div id="est-banner"></div>
       <div class="days" id="days"></div>
+      <div id="villes" hidden></div>
 
       <div class="board" id="board"></div>
       <div class="table-wrap" id="elist" hidden>
@@ -147,14 +160,33 @@
         <div class="dref" id="d-ref"></div>
         <div class="dsub" id="d-sub"></div>
       </div>
-      <button class="icon-btn" id="d-close" aria-label="Fermer">✕</button>
+      <div class="dh-r">
+        <span id="d-nav" hidden><span class="muted" id="d-pos"></span><button class="icon-btn" id="d-prev" title="Envoi précédent (K ou ←)" aria-label="Précédent">‹</button><button class="icon-btn" id="d-next" title="Envoi suivant (J ou →)" aria-label="Suivant">›</button></span>
+        <button class="icon-btn" id="d-close" aria-label="Fermer" title="Fermer (Échap)">✕</button>
+      </div>
     </div>
     <div class="dactions" id="d-actions"></div>
+    <div id="d-sum" hidden></div>
     <div class="dtabs" id="d-tabs"></div>
     <div class="dbody" id="d-body"></div>
   </aside>
 
   <div class="toast" id="toast" hidden></div>
+  <div class="kb" id="kb" hidden>
+    <div class="kb-box" role="dialog" aria-label="Raccourcis clavier">
+      <div class="kb-h"><b>Raccourcis clavier</b><button class="icon-btn" id="kb-close" aria-label="Fermer">✕</button></div>
+      <dl>
+        <dt><kbd>/</kbd></dt><dd>Rechercher dans la page</dd>
+        <dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>Recherche globale</dd>
+        <dt><kbd>J</kbd> / <kbd>Entrée</kbd></dt><dd>Ouvrir le premier envoi de la liste</dd>
+        <dt><kbd>J</kbd> <kbd>K</kbd> ou <kbd>→</kbd> <kbd>←</kbd></dt><dd>Envoi suivant / précédent (fiche ouverte)</dd>
+        <dt><kbd>1</kbd> … <kbd>7</kbd></dt><dd>Changer d'onglet dans la fiche</dd>
+        <dt><kbd>S</kbd></dt><dd>Clôturer ★ / déverrouiller l'envoi</dd>
+        <dt><kbd>Échap</kbd></dt><dd>Fermer la fiche</dd>
+        <dt><kbd>?</kbd></dt><dd>Afficher cette aide</dd>
+      </dl>
+    </div>
+  </div>
 </div>
 <script src="data.js"></script>
 <script src="app.js"></script>
