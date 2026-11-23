@@ -197,27 +197,63 @@
     return ev.reverse();
   }
 
+  const OPTIONS = [
+    ["Assurance / valeur déclarée", 5], ["Batteries lithium (non booké)", 15], ["Boîte carboglace L (livraison incluse)", 215], ["Boîte carboglace M (livraison incluse)", 175],
+    ["Boîte carboglace S (livraison incluse)", 135], ["Boîte carboglace XL (livraison incluse)", 255], ["Carboglace (Dry Ice UN1845)", 35], ["Colis hors gabarit (dimensions)", 50],
+    ["Colis hors norme (poids)", 80], ["Colis non convoyable", 40], ["Colis non empilable", 250], ["Colis non mécanisable", 15], ["Conditionnement / réemballage", null],
+    ["Correction / changement d'adresse", 15], ["Corse & îles", 30], ["Dépôt en point relais", 9], ["Enlèvement chez un tiers", 15], ["Enlèvement le samedi", 30],
+    ["Garantie livraison (suivi dédié)", 56], ["Livraison à domicile (particulier)", 5], ["Livraison avant 10h / 10h30", 15], ["Livraison avant 12h", 8], ["Livraison avant 9h", 25],
+    ["Livraison en relais colis", 9], ["Livraison le samedi", 12], ["Livraison par QR Code", 2.5], ["Livraison sur plage horaire", 10], ["Livraison sur rendez-vous (créneau 1 h)", 15],
+    ["Marchandises dangereuses — quantité exceptée (EQ)", 20], ["Marchandises dangereuses — quantité limitée (LQ)", 50], ["Matières dangereuses (ADR)", 100],
+    ["Passage à vide (enlèvement infructueux)", 15], ["Priorité (traitement prioritaire)", 20], ["Relivraison (nouvelle étiquette)", null], ["Stockage (agence / sous douane)", null],
+    ["Urgence — livraison sous 2 h", 45], ["Zone difficile d'accès", 25]
+  ];
+  const STATUTS = ["En attente de prise en charge", "Pris en charge", "En transit", "En cours de livraison", "Livré", "Livré en point relais", "Anomalie", "Retour expéditeur", "Annulé"];
+  const eur = v => v.toFixed(2) + " €";
+  function extra(e) {
+    if (e._x) return e._x;
+    const kg = parseInt(e.poids);
+    e._x = {
+      dims: ["45×40×15", "50×10×30", "30×30×30", "60×40×40", "20×15×10"][e.id % 5] + " cm",
+      nature: "STATUT C", cat: e.contenu === "Document" ? "Document" : "Marchandise",
+      options: e.ext ? [{ l: "Enlèvement chez un tiers", p: 15, by: "Léa FIXMAN", d: "03/11 10:16" }] : [],
+      noFact: false, comments: [], snaps: 4 + (e.id % 9),
+      dem: { id: "dem-17930" + (21283932 + e.id * 917) + "-" + ["cgoy4", "ab7k2", "pq9x1", "zt3m8"][e.id % 4], canal: ["email", "portail", "téléphone"][e.id % 3], statut: "confirmee",
+        recue: new Date(e.ramasse.getTime() - 864e5), service: e.carrier === "TNT" ? "Expédition National Express" : "Expédition " + e.presta, poids: kg + " kg", pal: 1, prix: +(e.ht * .7).toFixed(2) },
+      signataire: e.statut === "livre" ? (e.livCt.split(" ")[0] === "Service" ? "M Maslo" : e.livCt) + " - " + e.liv.nom.toUpperCase() : null,
+      preuve: e.statut === "livre"
+    };
+    return e._x;
+  }
+  const H = (icon, title, right = "") => `<div class="sec-h"><span class="sec-i">${icon}</span><span class="sec-t">${title}</span><span class="sec-r">${right}</span></div>`;
+  const row2 = (l, v, cls = "") => `<div class="r2 ${cls}"><span>${l}</span><span>${v}</span></div>`;
+
   function openEnvoi(id, tab = "apercu") {
     const e = ENVOIS[id]; state.open = id;
+    const x = extra(e);
     $$("#rows tr").forEach(t => t.classList.toggle("open", +t.dataset.id === id));
     const s = ST[e.statut];
-    $("#d-ref").innerHTML = `<span class="mono" style="font-size:16px">${esc(e.bord)}</span><span class="st ${s.c}">${s.l}</span>`;
-    $("#d-sub").innerHTML = `${esc(e.ref)} · ${esc(e.client)} · <i class="cdot" style="background:${cColor(e.carrier)}"></i> ${esc(e.carrier)} ${esc(e.presta)}`;
-    actions([["↻ Rafraîchir le suivi"], ["Demander la preuve"], ["Ouvrir une enquête", e.prio === 2 ? "primary" : ""], ["Déplacer dans un dossier"], ["Masquer"]]);
+    $("#d-ref").innerHTML = `<span>Détail transporteur — ${esc(e.ref)}</span><span class="st ${s.c}">${s.l}</span>`;
+    $("#d-sub").innerHTML = `<span class="mono">${esc(e.bord)}</span> · ${esc(e.client)} · <i class="cdot" style="background:${cColor(e.carrier)}"></i> ${esc(e.carrier)} ${esc(e.presta)}`;
+    $("#d-actions").innerHTML = `<button class="btn sm">↻ Rafraîchir le suivi</button><button class="btn sm">Demander la preuve</button><button class="btn sm ${e.prio === 2 ? "primary" : "outline-p"}">Ouvrir une enquête</button>
+      <select class="btn sm sel-btn"><option>Déplacer dans dossier en cours</option><option>Non lu</option><option>En cours</option><option>Terminé</option></select><button class="btn sm">Masquer</button>`;
+    $$("#d-actions button").forEach(b => b.onclick = () => toast(b.textContent));
+    $("#d-actions select").onchange = ev => { toast("Déplacé dans : " + ev.target.value); ev.target.selectedIndex = 0; };
     const ev = events(e);
+    const totalOpt = x.options.reduce((a, o) => a + (o.p || 0), 0);
     drawerTabs([
-      { id: "apercu", l: "Aperçu" }, { id: "suivi", l: "Suivi transporteur", n: ev.length }, { id: "colis", l: "Colis & couverture", n: e.colis > 1 ? e.colis : 0 },
-      { id: "fact", l: "Facturation" }, { id: "docs", l: "Documents" }, { id: "cmt", l: "Commentaires" }
+      { id: "apercu", l: "Envoi" }, { id: "suivi", l: "Suivi", n: ev.length },
+      { id: "colis", l: "Colis" }, { id: "fact", l: "Facturation", n: x.options.length },
+      { id: "docs", l: "Documents", n: x.preuve ? 1 : 0 }, { id: "cmt", l: "Échanges", n: x.comments.length }
     ], tab, t => openEnvoi(id, t));
     const B = $("#d-body");
     const stepper = `<div class="stepper">${STEPS.map((st, i) => `<div class="step ${i < s.n ? "d" : ""} ${i === s.n - 1 ? "cur" : ""} ${e.statut === "anomalie" && i === s.n - 1 ? "x" : ""}"><b></b>${st}</div>`).join("")}</div>`;
-    const alerts = e.al.filter(a => a.lv !== "info").map(a => `<div class="alert-box ${a.lv === "warn" ? "warn" : ""}"><b>${esc(a.t)}</b>Dernier événement : ${ago(e.lastScanH)}.<div class="acts"><button class="btn sm primary">${esc(a.a)}</button><button class="btn sm">Prévenir le client</button><button class="btn sm">Ajouter un commentaire</button></div></div>`).join("");
+    const alerts = e.al.filter(a => a.lv !== "info").map(a => `<div class="alert-box ${a.lv === "warn" ? "warn" : ""}"><b>${esc(a.t)}</b>Dernier événement : ${ago(e.lastScanH)}.<div class="acts"><button class="btn sm primary">${esc(a.a)}</button><button class="btn sm">Prévenir le client</button></div></div>`).join("");
     const fmtAdr = (nom, ct, adr, cp, ville, pays) => [nom, ct, adr, `${cp} ${ville}`, pays].filter(Boolean).map(esc).join(" · ");
     const priseD = e.statut === "attente" ? new Date(e.ramasse.getTime() + 864e5) : e.ramasse;
-    const STATUTS = ["En attente de prise en charge", "Pris en charge", "En transit", "En cours de livraison", "Livré", "Livré en point relais", "Anomalie", "Retour expéditeur", "Annulé"];
+
     if (tab === "apercu") B.innerHTML = `${stepper}${alerts}
-      <div class="box acc">
-        <h3>Enlèvement, livraison &amp; compte</h3>
+      <div class="sec">${H("🚚", "Enlèvement, livraison &amp; compte")}
         <div class="acc-row acc-col"><span class="lbl">Client (payeur)</span><span class="val big">${esc(e.client)} <button class="pen" title="Changer le payeur">✎</button></span></div>
         <div class="acc-row"><span class="lbl">Sous-compte / Référence / N° de commande</span><input class="inline-in" value="${esc(e.sousCompte)}" placeholder="Saisir…"></div>
         <div class="acc-row"><span class="lbl">Enlèvement</span><span class="val">${fmtAdr(e.dep.nom, e.depCt, e.depAdr, e.dep.cp, e.dep.ville, "France")}${e.ext ? ` <span class="tag ext">Extérieur</span>` : ""}</span></div>
@@ -227,21 +263,97 @@
         <div class="acc-row"><span class="lbl">Changer le statut</span><span class="val st-change"><select id="st-sel"><option value="">Choisir…</option>${STATUTS.map(s => `<option>${s}</option>`).join("")}</select> au <input type="date" value="2026-11-23"> <button class="btn sm primary" id="st-apply" disabled>Appliquer</button></span></div>
         <div class="acc-foot"><button class="link mono">${esc(e.bord)}</button> <span class="muted" style="font-size:12px">envoi</span>${e.colis > 1 ? ` <span class="muted" style="font-size:12px">· ${e.colis} colis</span>` : ""}</div>
       </div>
-      <div class="box"><h3>En bref</h3><dl class="kv">
-        <dt>Transporteur</dt><dd>${esc(e.carrier)} · ${esc(e.presta)}</dd><dt>Colis</dt><dd>${e.colis} · ${e.poids}</dd><dt>Contenu</dt><dd>${esc(e.contenu)}</dd>
-        <dt>Assurance</dt><dd>${e.tags.find(t => t[0] === "ass")?.[1] || "Non assuré"}</dd><dt>Facturation</dt><dd>${e.ht.toFixed(2)} € HT</dd><dt>Dossier</dt><dd>${esc(e.dossier)}</dd>
-      </dl></div>`;
-    if (tab === "suivi") B.innerHTML = `<div class="box"><h3>Réponses du transporteur</h3><ul class="tl">${ev.map((x, i) => `<li class="${i === 0 ? "first" : ""} ${x.bad ? "bad" : ""}"><span class="t">${fmtDT(x.d)}</span><span class="b"></span><span>${esc(x.txt)}<div class="loc">${esc(x.loc)}</div></span></li>`).join("")}</ul></div>
-      <div class="box"><h3>Repasser / instruction au transporteur</h3><div class="two"><label>Date <input type="date" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px"></label><label>Créneau <select style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px"><option>Matin</option><option>Après-midi</option></select></label></div><div style="margin-top:10px"><button class="btn sm primary">Envoyer l'instruction</button></div></div>`;
-    if (tab === "colis") B.innerHTML = `<div class="box"><h3>Colis (${e.colis})</h3><table class="grid"><thead><tr><th>N° colis</th><th>Poids déclaré</th><th>Mesuré transporteur</th><th>Statut</th></tr></thead><tbody>${Array.from({ length: e.colis }, (_, i) => `<tr><td class="mono">${esc(e.bord)}${e.colis > 1 ? "-" + (i + 1) : ""}</td><td>${e.poids}</td><td class="muted">Non communiqué</td><td>${i === 0 || e.statut !== "livre" ? ST[e.statut].l : "En transit"}</td></tr>`).join("")}</tbody></table><div style="margin-top:10px"><button class="btn sm">Corriger le poids / les dimensions</button></div></div>
-      <div class="box"><h3>Couverture</h3><dl class="kv"><dt>Indemnité transporteur</dt><dd>${(parseInt(e.poids) * 33)} € (33 €/kg)</dd><dt>Nature</dt><dd>${esc(e.contenu)}</dd><dt>Assurance</dt><dd>${e.tags.find(t => t[0] === "ass")?.[1] || "Non assuré — seule l'indemnité du transporteur s'applique"}</dd></dl></div>`;
-    if (tab === "fact") B.innerHTML = `<div class="box"><h3>Facturation</h3><dl class="kv"><dt>Prix de vente</dt><dd><b>${e.ht.toFixed(2)} € HT</b></dd><dt>Date de ramassage</dt><dd>${fmtD(e.ramasse)} (mois de facturation)</dd><dt>Payeur</dt><dd>${esc(e.client)}</dd></dl><div style="margin-top:10px;display:flex;gap:6px"><button class="btn sm">À facturer</button><button class="btn sm">À contester</button></div></div>
-      <div class="box"><h3>Demande liée</h3><dl class="kv"><dt>Origine</dt><dd>Portail client</dd><dt>Statut</dt><dd>Confirmée</dd></dl></div>`;
-    if (tab === "docs") B.innerHTML = `<div class="files"><div class="file"><b>Bordereau / étiquette</b>PDF · imprimer</div><div class="file"><b>Photos du colis</b>Ajouter</div><div class="file"><b>Preuve de livraison</b>${e.statut === "livre" ? "Disponible" : "—"}</div><div class="file"><b>Pièces conservées</b>Facture client</div><div class="file"><b>Signature</b>${e.statut === "livre" ? "Signé" : "—"}</div><div class="file"><b>Mails</b>0 échange</div></div>`;
-    if (tab === "cmt") B.innerHTML = `<div class="box"><h3>Commentaires internes</h3><div class="cmt"><div class="w">Suivi · hier 15:12</div>Relance faite par mail au transporteur, en attente de retour.</div><textarea placeholder="Ajouter un commentaire visible par l'équipe…"></textarea><div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button class="btn sm primary">Ajouter</button><label class="muted" style="font-size:12px"><input type="checkbox"> Visible par le client</label></div></div>`;
-    $$("#d-body .btn, #d-body .link, #d-body .pen").forEach(b => b.onclick = () => toast(b.textContent.trim() === "✎" ? "Changer le client payeur" : b.textContent));
+      <div class="sec">${H("🕓", "Livraison")}
+        ${row2("Signataire", x.signataire ? `<b>${esc(x.signataire)}</b>` : `<span class="muted">Pas encore livré</span>`)}
+      </div>`;
+
+    if (tab === "suivi") B.innerHTML = `
+      <div class="sec">${H("📍", "Parcours", ev.length + " évén.")}
+        <ul class="tl">${ev.map((y, i) => `<li class="${i === 0 ? "first" : ""} ${y.bad ? "bad" : ""}"><span class="t">${fmtDT(y.d)}</span><span class="b"></span><span><b style="font-weight:500">${esc(y.txt)}</b> <span class="loc">· ${esc(y.loc)} <span class="code">[000]</span></span></span></li>`).join("")}</ul>
+      </div>
+      <div class="sec">${H("📄", `Réponses du transporteur`, `${x.snaps} instantanés`)}
+        <details class="snaps"><summary>Afficher les réponses brutes du transporteur</summary>${Array.from({ length: Math.min(x.snaps, 4) }, (_, i) => `<div class="snap"><span class="mono">${fmtDT(new Date(NOW.getTime() - i * 36e5 * 7))}</span> — réponse API ${esc(e.carrier)} · ${i ? "inchangée" : "statut mis à jour"}</div>`).join("")}${x.snaps > 4 ? `<div class="muted" style="font-size:12px;padding-top:4px">+ ${x.snaps - 4} autres</div>` : ""}</details>
+      </div>
+      <div class="sec">${H("✈", "Répondre")}
+        <div class="muted" style="font-size:12.5px;margin-bottom:8px">Envoyer une instruction au transporteur (conservée dans l'historique).</div>
+        <div class="two"><select class="fld"><option>Instruction…</option><option>Nouvelle présentation</option><option>Mise en instance</option><option>Retour expéditeur</option><option>Changement d'adresse</option></select><input type="date" class="fld" value="2026-11-24"></div>
+        <textarea placeholder="Message au transporteur…" style="margin-top:8px"></textarea>
+        <div style="margin-top:8px"><button class="btn sm primary">Envoyer</button></div>
+      </div>`;
+
+    if (tab === "colis") {
+      const kg = parseInt(e.poids);
+      const ass = e.tags.find(t => t[0] === "ass");
+      B.innerHTML = `
+      <div class="sec">${H("⚖", "Colis mesuré")}
+        <div class="two">
+          <div><div class="sub-h">Déclaré</div>${row2("Poids", e.poids)}${row2("Dimensions", x.dims)}${row2("Colis", e.colis)}${row2("Nature", x.nature)}${row2("Catégorie", `<span class="tag">${x.cat}</span>`)}</div>
+          <div><div class="sub-h">Mesuré par le transporteur</div><div class="muted" style="font-style:italic;font-size:13px">Non communiqué par ce transporteur.</div></div>
+        </div>
+        <button class="btn sm" style="margin-top:10px">⚖ Corriger le poids / les dimensions</button>
+      </div>
+      <div class="sec">${H("🛡", "Couverture", `<span class="pill">${ass ? "assurée" : "non assurée"}</span>`)}
+        ${row2("Indemnité transporteur", `<b>${kg * 33} € (33 €/kg)</b>`)}
+        <div class="warn-txt">Barème valeur appliqué par l'équipe Suivi — à confirmer contrat par contrat — à vérifier avant de l'annoncer au client.</div>
+        ${row2("Départ", e.ext ? "Extérieur (chez le client)" : "MTI")}
+        ${row2("Nature de la marchandise", x.nature)}
+        <div class="muted" style="font-style:italic;font-size:13px;margin-top:6px">${ass ? esc(ass[1]) + " — valeur déclarée couverte." : "Marchandise non assurée : seule l'indemnité du transporteur s'appliquera."}</div>
+        <div class="muted" style="font-size:12px;margin-top:2px">Calcul incomplet — manque : valeur de la marchandise (facture du client).</div>
+      </div>`;
+    }
+
+    if (tab === "fact") B.innerHTML = `
+      <div class="sec">${H("€", "Facturation", eur(e.ht + totalOpt) + " HT")}
+        <button class="link danger-l" id="nofact">${x.noFact ? "✓ Envoi marqué « ne pas facturer » — annuler" : "Ne pas facturer cet envoi"}</button>
+        ${row2("Prix de vente HT", `<b>${eur(e.ht)}</b> <button class="link" style="font-size:12px">modifier</button>`)}
+        ${row2("Options vendues", x.options.length ? eur(totalOpt) : "—")}
+        ${row2("Total HT", `<b>${eur(e.ht + totalOpt)}</b>`, "tot")}
+        <div class="sub-h" style="margin-top:12px">Ajouter une option vendue</div>
+        <div class="opt-add"><select id="opt-sel" class="fld"><option value="">Choisir une option…</option>${OPTIONS.map((o, i) => `<option value="${i}">${o[0]} — ${o[1] == null ? "tarif à saisir" : eur(o[1])}</option>`).join("")}</select><input id="opt-p" class="fld" placeholder="€" style="width:90px"><button class="btn sm" id="opt-add" disabled>Ajouter</button></div>
+      </div>
+      <div class="sec">${H("🛡", "Options vendues", x.options.length)}
+        ${x.options.length ? x.options.map((o, i) => `<div class="opt"><div><b style="font-weight:500">${esc(o.l)}</b><div class="muted" style="font-size:12px">${eur(o.p || 0)} HT facturés · ajoutée par ${esc(o.by)} le ${o.d}</div></div><button class="link danger-l" data-rm="${i}">🗑 Retirer</button></div>`).join("") : `<div class="muted" style="font-size:13px">Aucune option vendue.</div>`}
+      </div>
+      <div class="sec">${H("📋", "Demande liée", `<span class="mono" style="font-size:11px">${x.dem.id}</span>`)}
+        ${row2("Canal", x.dem.canal)}${row2("Statut", x.dem.statut)}${row2("Reçue le", fmtDT(x.dem.recue))}${row2("Service demandé", x.dem.service)}
+        ${row2("Enlèvement demandé", e.ramasse.toISOString().slice(0, 10))}${row2("Poids annoncé", x.dem.poids)}${row2("Palettes", x.dem.pal)}${row2("Nature annoncée", x.nature)}${row2("Prix proposé", `<b>${x.dem.prix.toFixed(2)} € HT</b>`)}
+      </div>`;
+
+    if (tab === "docs") B.innerHTML = `
+      <div class="sec">${H("🗄", "Pièces conservées", x.preuve ? 1 : 0)}
+        ${x.preuve ? `<div class="piece"><span>📄</span><div style="flex:1"><b style="font-weight:500">Preuve de livraison</b><div class="muted" style="font-size:12px">${esc(e.carrier)} · fournie par le transporteur · ${fmtDT(new Date(e.ramasse.getTime() + 30 * 36e5))} · 16 ko</div></div><button class="btn sm">Ouvrir</button></div>` : `<div class="muted" style="font-size:13px">Aucune pièce. <button class="link">Demander la preuve</button></div>`}
+      </div>
+      <div class="sec">${H("📄", "Bordereau / Étiquette", "PDF")}
+        ${row2("Format conservé", "PDF")}
+        <button class="btn sm" style="margin-top:8px">📄 Voir l'étiquette</button>
+      </div>
+      <div class="sec">${H("📷", "Photos du colis &amp; signatures")}
+        <div class="muted" style="font-style:italic;font-size:13px">${e.carrier === "MTI Express" ? "Aucune photo pour l'instant — elles arriveront depuis l'app chauffeur." : "Aucune preuve terrain. Les photos et signatures viennent de l'app chauffeur : un envoi confié directement à un transporteur n'en a pas."}</div>
+      </div>`;
+
+    if (tab === "cmt") B.innerHTML = `
+      <div class="sec">${H("💬", "Commentaires", x.comments.length)}
+        ${x.comments.length ? x.comments.map(c => `<div class="cmt"><div class="w">${c.w}${c.vis ? " · visible du client" : ""}</div>${esc(c.t)}</div>`).join("") : `<div class="muted" style="font-style:italic;font-size:13px;margin-bottom:8px">Rien encore. Un mot ici remplace un mail à un collègue — et reste lisible par celui qui reprendra le dossier.</div>`}
+        <textarea id="cmt-t" placeholder="Ce qu'il faut savoir sur cet envoi…"></textarea>
+        <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button class="btn sm primary" id="cmt-add" disabled>Ajouter</button><label class="muted" style="font-size:12.5px;display:flex;gap:5px;align-items:center"><input type="checkbox" id="cmt-vis"> Visible du client</label></div>
+      </div>
+      <div class="sec">${H("✉", "Mails", "0")}
+        <div class="muted" style="font-size:13px">Aucun mail rattaché à cet envoi.</div>
+      </div>`;
+
+    $$("#d-body .btn, #d-body .pen").forEach(b => { if (!b.id) b.onclick = () => toast(b.textContent.trim() === "✎" ? "Changer le client payeur" : b.textContent.trim()); });
+    $$("#d-body .link").forEach(b => { if (!b.id && !b.dataset.rm) b.onclick = () => toast(b.textContent.trim()); });
     const sel = $("#st-sel");
     if (sel) { sel.onchange = () => $("#st-apply").disabled = !sel.value; $("#st-apply").onclick = () => toast(`Statut « ${sel.value} » appliqué`); }
+    const os = $("#opt-sel");
+    if (os) {
+      os.onchange = () => { const o = OPTIONS[os.value]; $("#opt-p").value = o && o[1] != null ? o[1].toFixed(2) : ""; $("#opt-add").disabled = !os.value; };
+      $("#opt-add").onclick = () => { const o = OPTIONS[os.value]; x.options.push({ l: o[0], p: parseFloat(($("#opt-p").value || "0").replace(",", ".")) || 0, by: "Wessim FARAG", d: "23/11 16:40" }); toast("Option ajoutée : " + o[0]); openEnvoi(id, "fact"); };
+      $$("[data-rm]").forEach(b => b.onclick = () => { x.options.splice(+b.dataset.rm, 1); openEnvoi(id, "fact"); });
+      $("#nofact").onclick = () => { x.noFact = !x.noFact; openEnvoi(id, "fact"); };
+    }
+    const ct = $("#cmt-t");
+    if (ct) { ct.oninput = () => $("#cmt-add").disabled = !ct.value.trim(); $("#cmt-add").onclick = () => { x.comments.push({ t: ct.value.trim(), w: "Wessim FARAG · 23/11 16:40", vis: $("#cmt-vis").checked }); openEnvoi(id, "cmt"); }; }
     openDrawer();
   }
 

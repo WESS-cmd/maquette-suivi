@@ -273,3 +273,33 @@ textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;
 @media (max-width:860px){.acc-row{flex-direction:column;align-items:flex-start;gap:4px}.acc-row .lbl{max-width:none}.acc-row .val{text-align:left}.st-change{justify-content:flex-start}.inline-in{text-align:left;width:100%}}
 .st-change select{max-width:200px}
 .st-change input[type=date]{width:140px}
+
+/* sections du détail */
+.sec{border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px}
+.sec-h{display:flex;align-items:center;gap:8px;margin:-2px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line2)}
+.sec-i{width:22px;text-align:center;font-size:13px;color:var(--muted);filter:grayscale(1)}
+.sec-t{font-weight:600;font-size:14px}
+.sec-r{margin-left:auto;font-size:12px;color:var(--muted)}
+.sec .acc-row:first-of-type{border-top:0}
+.r2{display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-bottom:1px solid var(--line2);font-size:13px}
+.r2:last-child{border-bottom:0}
+.r2>span:first-child{color:var(--muted)}
+.r2>span:last-child{text-align:right}
+.r2.tot{border-top:1px solid var(--line);border-bottom:0;margin-top:2px}
+.sub-h{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600}
+.pill{background:var(--line2);border-radius:999px;padding:2px 8px;font-size:11.5px}
+.warn-txt{color:#c2410c;font-size:12.5px;padding:4px 0 6px}
+.danger-l{color:var(--crit)!important;font-size:12.5px}
+.opt-add{display:flex;gap:6px;align-items:center}
+.opt-add select{flex:1;min-width:0}
+.fld{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--surface);width:100%}
+.opt-add .fld:not(select){width:90px}
+.opt{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--line2)}
+.opt:last-child{border-bottom:0}
+.piece{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+.snaps summary{cursor:pointer;font-size:13px;color:var(--primary)}
+.snap{font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line2)}
+.code{color:var(--faint);font-family:var(--mono);font-size:11px}
+.outline-p{border-color:var(--primary);color:var(--primary)}
+.sel-btn{appearance:auto;padding-right:6px}
+.dref{font-size:16px}
