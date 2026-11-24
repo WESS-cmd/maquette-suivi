@@ -126,7 +126,7 @@
       + `<div class="qa">${als.slice(0, 2).map(a => `<button data-a="${esc(a.a)}">${esc(a.a)}</button>`).join("")}</div>`
       : `<span class="muted">Rien à faire</span>`;
     const pr = reouv(e) ? "crit" : x.lock ? "ok" : ["ok", "warn", "crit"][e.prio];
-    const stc = `<button class="rstar ${x.lock ? "on" : ""}" data-star="1" title="${x.lock ? "Traité par " + esc(x.lock.by) + " le " + x.lock.d + " — cliquer pour rouvrir" : "Suivi terminé ? Cliquer pour marquer comme traité"}" aria-label="${x.lock ? "Rouvrir" : "Marquer comme traité"}">${x.lock ? "★" : "☆"}</button>`;
+    const stc = x.lock ? `<span class="rstar on" title="Traité par ${esc(x.lock.by)} le ${x.lock.d}" aria-label="Traité">★</span>` : "";
     return `<tr class="u-${pr} ${x.lock ? "locked" : ""} ${state.sel.has(e.id) ? "sel" : ""} ${state.open === e.id ? "open" : ""}" data-id="${e.id}">
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
@@ -150,7 +150,6 @@
       const id = +tr.dataset.id;
       tr.onclick = ev => {
         if (ev.target.classList.contains("ck")) { ev.stopPropagation(); state.sel.has(id) ? state.sel.delete(id) : state.sel.add(id); renderBulk(); tr.classList.toggle("sel"); return; }
-        if (ev.target.dataset.star) { ev.stopPropagation(); askLock(ENVOIS[id]); return; }
         if (ev.target.closest("[data-mail]")) { ev.stopPropagation(); mstate.open = true; openEnvoi(id); return; }
         if (ev.target.dataset.a) {
           ev.stopPropagation();
