@@ -11,6 +11,11 @@
   const toast = m => { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, 2200); };
 
   $("#clock").textContent = NOW.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + " — " + NOW.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  var OPS = ["Wessim FARAG", "Léa FIXMAN", "Karim BENALI", "Sarah MOREAU"];
+  var shortN = n => { const [p, ...r] = n.split(" "); return p + " " + (r.join(" ")[0] || "") + "."; };
+  var ini = n => n.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  var avatar = n => `<span class="av av${OPS.indexOf(n) + 1}" title="${esc(n)}">${ini(n)}</span>`;
+  var cslug = c => ({ "DHL Express": "dhl", "GLS France": "gls", "MTI Express": "mti" })[c] || c.toLowerCase();
 
   // ================= NAVIGATION =================
   function go(p) {
@@ -66,6 +71,9 @@
     if (fd && e.dossier !== fd) return false;
     if (fco && e.contenu !== fco) return false;
     if ($("#f-ext").checked && !e.ext) return false;
+    const fo = $("#f-op").value, fsr = $("#f-src").value, xs = extra(e);
+    if (fo && xs.src.by !== fo && !(xs.lock && xs.lock.by === fo)) return false;
+    if (fsr && xs.src.k !== fsr) return false;
     const du = $("#f-du").value, au = $("#f-au").value;
     if (du && e.ramasse < new Date(du)) return false;
     if (au && e.ramasse > new Date(au + "T23:59")) return false;
@@ -117,12 +125,19 @@
     const s = ST[e.statut];
     return `<div class="prog ${s.k || ""}">${STEPS.map((_, i) => `<i class="${i < s.n ? "d" : ""}"></i>`).join("")}</div><div class="st ${s.c}">${s.l}</div>`;
   }
+  function srcLine(e) {
+    const x = extra(e), sc = x.src;
+    return sc.k === "import"
+      ? `<div class="src" title="Importé depuis l'export du site ${esc(e.carrier)} (${esc(sc.file)}) par ${esc(sc.by)} le ${sc.d}"><span class="srcb imp">⇣ Import ${esc(e.carrier)}</span>${avatar(sc.by)}<span>${esc(shortN(sc.by))}</span></div>`
+      : `<div class="src" title="Créé dans le TMS par ${esc(sc.by)} le ${sc.d}"><span class="srcb tms">Créé TMS</span>${avatar(sc.by)}<span>${esc(shortN(sc.by))}</span></div>`;
+  }
   function row(e) {
     const s = ST[e.statut];
     const since = e.statut === "livre" ? "" : e.lastScanH > 48 ? "crit" : e.lastScanH > 24 ? "warn" : "";
     const x = extra(e);
     const als = x.lock ? [] : e.al.filter(a => !(a.a === "Demander la preuve" && x.preuve)).concat(aFacturer(e) ? [{ lv: "warn", t: `À facturer : ${eur(e.ht + optTotal(x))} HT`, a: "Valider la facturation" }] : []);
-    const todo = reouv(e) ? `<div class="al crit"><i></i><span>Nouveau mail après traitement — à regarder</span></div><span class="muted" style="font-size:12px">★ Traité par ${esc(x.lock.by)}</span>` : x.lock ? `<span class="muted">★ Traité par ${esc(x.lock.by)} — on n'y revient plus</span>` : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
+    const tby = x.lock ? `<div class="tby">${avatar(x.lock.by)}<span><b>★ Traité par ${esc(shortN(x.lock.by))}</b><br><span class="muted">le ${x.lock.d}</span></span></div>` : "";
+    const todo = reouv(e) ? `<div class="al crit"><i></i><span>Nouveau mail après traitement — à regarder</span></div>${tby}` : x.lock ? tby : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
       + `<div class="qa">${als.slice(0, 2).map(a => `<button data-a="${esc(a.a)}">${esc(a.a)}</button>`).join("")}</div>`
       : `<span class="muted">Rien à faire</span>`;
     const pr = reouv(e) ? "crit" : x.lock ? "lk" : ["ok", "warn", "crit"][e.prio];
@@ -131,7 +146,7 @@
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
       <td class="tc">${cb(e.carrier)}<div class="presta">${esc(e.presta)}</div></td>
-      <td><div class="bord">${esc(e.bord)}</div><div class="ref">${esc(e.ref)}${e.colis > 1 ? ` · ${e.colis} colis` : ""}</div>${mailBadge(e)}</td>
+      <td><div class="bord">${esc(e.bord)}</div><div class="ref">${esc(e.ref)}${e.colis > 1 ? ` · ${e.colis} colis` : ""}</div>${srcLine(e)}${mailBadge(e)}</td>
       <td><div class="cl">${esc(e.client)}</div><div class="cl-sub">${esc(e.sub || "—")}</div>${e.tags.filter(t => t[0] !== "ext").map(t => `<span class="tag ${t[0]}">${t[1]}</span>`).join("")}</td>
       <td><div class="trajet">
         <div class="pt"><span class="lbl">Dép.</span><span class="nm">${esc(e.dep.nom)}</span><span class="vl">${esc(e.dep.cp)} ${esc(e.dep.ville)}</span>${e.ext ? `<span class="tag ext" style="margin:0">Extérieur</span>` : ""}</div>
@@ -167,7 +182,7 @@
     $("#bulk-n").textContent = state.sel.size;
   }
   function moreCount() {
-    const n = ["#f-client", "#f-dossier", "#f-contenu", "#f-du", "#f-au"].filter(s => $(s).value).length + ["#f-ext", "#f-payeur", "#f-annule"].filter(s => $(s).checked).length;
+    const n = ["#f-client", "#f-op", "#f-src", "#f-dossier", "#f-contenu", "#f-du", "#f-au"].filter(s => $(s).value).length + ["#f-ext", "#f-payeur", "#f-annule"].filter(s => $(s).checked).length;
     $("#mf-count").hidden = !n; $("#mf-count").textContent = n;
     $("#reset").hidden = !(n || state.q || state.carriers.size || state.kpi);
   }
@@ -196,6 +211,7 @@
   function render() { renderKpis(); renderChips(); renderRelance(); renderSaved(); renderViews(); renderRows(); renderBulk(); moreCount(); }
 
   // filtres
+  OPS.forEach(o => $("#f-op").insertAdjacentHTML("beforeend", `<option>${esc(o)}</option>`));
   [...new Set(ENVOIS.map(e => e.client))].sort().forEach(c => $("#f-client").insertAdjacentHTML("beforeend", `<option>${esc(c)}</option>`));
   $("#q").addEventListener("input", e => { state.q = e.target.value; render(); });
   $("#gsearch").addEventListener("input", e => { go("suivi"); $("#q").value = e.target.value; state.q = e.target.value; state.view = "all"; state.kpi = null; render(); });
@@ -301,16 +317,21 @@
       mesure: e.id % 4 === 0 && e.carrier !== "MTI Express" && e.statut !== "attente" ? kg + 3 : null, ecartOk: false,
       factValide: livre && e.id % 3 === 1, lock: null, log: []
     };
-    x.log.push({ d: fmtDT(new Date(e.ramasse.getTime() - 20 * 36e5)), w: "Portail client", t: "Envoi créé — demande " + x.dem.id });
+    const cd = new Date(e.ramasse.getTime() - 20 * 36e5);
+    x.src = e.carrier !== "MTI Express" && e.id % 3 === 2
+      ? { k: "import", by: OPS[(e.id >> 1) % 4], d: fmtDT(cd), file: `export_${cslug(e.carrier)}_${String(cd.getDate()).padStart(2, "0")}${String(cd.getMonth() + 1).padStart(2, "0")}.csv` }
+      : { k: "tms", by: OPS[e.id % 4], d: fmtDT(cd) };
+    if (x.src.k === "import") { x.dem = null; x.log.push({ d: x.src.d, w: x.src.by, t: `Envoi importé depuis l'export du site ${e.carrier} (${x.src.file}) — pas de demande liée` }); }
+    else x.log.push({ d: x.src.d, w: x.src.by, t: "Envoi créé dans le TMS — demande " + x.dem.id + " (" + x.dem.canal + ")" });
     if (x.options.length) x.log.push({ d: "03/11 10:16", w: "Léa FIXMAN", t: "Option ajoutée : Enlèvement chez un tiers (15.00 €)" });
     if (livre && e.id % 7 === 0) {
       x.factValide = true; x.ecartOk = true; x.preuve = true;
       x.log.push({ d: "20/11 10:58", w: "Léa FIXMAN", t: "Facturation validée" });
-      x.lock = { by: "Léa FIXMAN", d: "20/11 11:02" };
-      x.log.push({ d: "20/11 11:02", w: "Léa FIXMAN", t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
+      x.lock = { by: OPS[(e.id + 1) % 4], d: "20/11 11:02" };
+      x.log.push({ d: "20/11 11:02", w: x.lock.by, t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
     } else if (!livre && e.statut !== "attente" && e.id % 9 === 4) {
-      x.lock = { by: "Léa FIXMAN", d: "22/11 17:10" }; x.demoReouv = e.id % 18 === 4;
-      x.log.push({ d: "22/11 17:10", w: "Léa FIXMAN", t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
+      x.lock = { by: OPS[(e.id + 2) % 4], d: "22/11 17:10" }; x.demoReouv = e.id % 18 === 4;
+      x.log.push({ d: "22/11 17:10", w: x.lock.by, t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
     } else if (x.factValide) x.log.push({ d: "21/11 09:30", w: "Compta", t: "Facturation validée" });
     return x;
   }
@@ -407,7 +428,7 @@
     const cli = `${c.ct} <${c.cmail}>`, car = `${c.carrier} <${CMAIL[c.carrier] || "contact@transporteur.fr"}>`;
     if (c.kind === "envoi") {
       const e = c.o;
-      if (x.dem.canal === "email") M.push({ dir: "in", from: cli, to: MBOX, d: fmtDT(x.dem.recue), subj: `Demande d'expédition ${e.dep.ville} → ${e.liv.ville}`, body: `Bonjour,\n\nMerci d'organiser l'expédition de ${e.colis} colis (${e.poids}) depuis ${e.dep.nom}, ${e.dep.ville}, vers ${e.liv.nom}, ${e.liv.ville}.\n\nCordialement,\n${c.ct}`, how: "Demande d'origine — rattachée à la création de l'envoi" });
+      if (x.dem && x.dem.canal === "email") M.push({ dir: "in", from: cli, to: MBOX, d: fmtDT(x.dem.recue), subj: `Demande d'expédition ${e.dep.ville} → ${e.liv.ville}`, body: `Bonjour,\n\nMerci d'organiser l'expédition de ${e.colis} colis (${e.poids}) depuis ${e.dep.nom}, ${e.dep.ville}, vers ${e.liv.nom}, ${e.liv.ville}.\n\nCordialement,\n${c.ct}`, how: "Demande d'origine — rattachée à la création de l'envoi" });
       M.push({ dir: "out", from: MBOX, to: cli, d: fmtDT(new Date(e.ramasse.getTime() - 18 * 36e5)), subj: `${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nVotre envoi est enregistré sous la référence ${e.ref}. Vous trouverez le bordereau ${c.carrier} n° ${e.bord} en pièce jointe, à coller sur le colis.\n\nL'équipe MTI Express`, pj: "Bordereau_" + e.bord + ".pdf", how: "Envoyé automatiquement par le TMS" });
       if (e.statut === "anomalie") M.push({ dir: "in", from: car, to: MBOX, d: fmtDT(new Date(NOW.getTime() - e.lastScanH * 36e5)), subj: `${tagS(c)} Avis d'anomalie sur votre envoi`, body: `Bonjour,\n\nUne anomalie a été signalée sur l'envoi ${e.bord} : ${e.statLbl || "adresse incomplète / destinataire absent"}. Merci de nous indiquer la marche à suivre.\n\n${c.carrier} — Service client`, unread: true, how: "Rattaché automatiquement : n° de bordereau dans l'objet" });
       if (x.demoReouv) M.push({ dir: "in", from: cli, to: MBOX, d: "23/11 15:48", subj: `RE: ${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nLe destinataire nous dit qu'il manque un colis à la livraison. Pouvez-vous vérifier ?\n\nMerci,\n${c.ct}`, unread: true, how: "Rattaché automatiquement : réponse au fil — arrivé après le traitement ★" });
@@ -550,6 +571,7 @@
     if (tab === "apercu") html = `${stepper}
       <div class="sec">${H("🚚", "Enlèvement, livraison &amp; compte")}
         <div class="acc-row acc-col"><span class="lbl">Client (payeur)</span><span class="val big">${esc(e.client)} <button class="pen" title="Changer le payeur">✎</button></span></div>
+        <div class="acc-row"><span class="lbl">Opérateurs</span><span class="val ops">${x.src.k === "import" ? `<span class="srcb imp">⇣ Import site ${esc(e.carrier)}</span> par ${avatar(x.src.by)} <b>${esc(x.src.by)}</b> le ${x.src.d} <span class="muted mono" style="font-size:11px">${esc(x.src.file)}</span>` : `<span class="srcb tms">Créé dans le TMS</span> par ${avatar(x.src.by)} <b>${esc(x.src.by)}</b> le ${x.src.d}`}${x.lock ? `<br><span class="srcb lk">★ Traité</span> par ${avatar(x.lock.by)} <b>${esc(x.lock.by)}</b> le ${x.lock.d}` : `<br><span class="muted">★ Pas encore traité</span>`}</span></div>
         <div class="acc-row"><span class="lbl">Sous-compte / Référence / N° de commande</span><input class="inline-in" value="${esc(e.sousCompte)}" placeholder="Saisir…"></div>
         <div class="acc-row"><span class="lbl">Enlèvement</span><span class="val">${fmtAdr(e.dep.nom, e.depCt, e.depAdr, e.dep.cp, e.dep.ville, "France")}${e.ext ? ` <span class="tag ext">Extérieur</span>` : ""}</span></div>
         <div class="acc-row"><span class="lbl">Livraison</span><span class="val">${fmtAdr(e.liv.nom, e.livCt, e.livAdr, e.liv.cp, e.liv.ville, e.liv.pays)}</span></div>
@@ -612,9 +634,12 @@
       <div class="sec">${H("🛡", "Options vendues", x.options.length)}
         ${x.options.length ? x.options.map((o, i) => `<div class="opt"><div><b style="font-weight:500">${esc(o.l)}</b><div class="muted" style="font-size:12px">${eur(o.p || 0)} HT facturés · ajoutée par ${esc(o.by)} le ${o.d}</div></div><button class="link danger-l" data-rm="${i}">🗑 Retirer</button></div>`).join("") : `<div class="muted" style="font-size:13px">Aucune option vendue.</div>`}
       </div>
-      <div class="sec">${H("📋", "Demande liée", `<span class="mono" style="font-size:11px">${x.dem.id}</span>`)}
+      <div class="sec">${!x.dem ? `${H("📋", "Demande liée", `<span class="srcb imp">Import ${esc(e.carrier)}</span>`)}
+        <div class="muted" style="font-size:13px;margin-bottom:8px">Aucune demande : cet envoi a été fait sur le site ${esc(e.carrier)}, puis intégré au TMS par l'export transporteur.</div>
+        ${row2("Fichier importé", `<span class="mono">${esc(x.src.file)}</span>`)}${row2("Importé par", esc(x.src.by))}${row2("Importé le", x.src.d)}
+        <div style="margin-top:8px"><button class="btn sm">+ Rattacher une demande</button></div>` : `${H("📋", "Demande liée", `<span class="mono" style="font-size:11px">${x.dem.id}</span>`)}
         ${row2("Canal", x.dem.canal)}${row2("Statut", x.dem.statut)}${row2("Reçue le", fmtDT(x.dem.recue))}${row2("Service demandé", x.dem.service)}
-        ${row2("Enlèvement demandé", e.ramasse.toISOString().slice(0, 10))}${row2("Poids annoncé", x.dem.poids)}${row2("Palettes", x.dem.pal)}${row2("Nature annoncée", x.nature)}${row2("Prix proposé", `<b>${x.dem.prix.toFixed(2)} € HT</b>`)}
+        ${row2("Enlèvement demandé", e.ramasse.toISOString().slice(0, 10))}${row2("Poids annoncé", x.dem.poids)}${row2("Palettes", x.dem.pal)}${row2("Nature annoncée", x.nature)}${row2("Prix proposé", `<b>${x.dem.prix.toFixed(2)} € HT</b>`)}`}
       </div>`;
 
     if (tab === "docs") html = `

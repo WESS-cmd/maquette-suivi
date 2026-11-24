@@ -533,3 +533,17 @@ tr.u-lk td:first-child::before{background:#eab308}
 .rstar.on{color:#eab308;font-size:20px;text-shadow:0 0 1px #a16207}
 @keyframes lkflash{0%{background:#fde68a}100%{background:#fef6d6}}
 .grid tbody tr.flash td{animation:lkflash 1.6s ease-out}
+
+/* opérateur & origine */
+.av{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:9.5px;font-weight:700;color:#fff;background:#64748b;flex:none;letter-spacing:.2px;vertical-align:middle}
+.av1{background:#2563eb}.av2{background:#db2777}.av3{background:#0d9488}.av4{background:#7c3aed}
+.src{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11.5px;color:#475569;white-space:nowrap}
+.srcb{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:4px;line-height:16px;white-space:nowrap}
+.srcb.tms{background:#eef2ff;color:#3730a3}
+.srcb.imp{background:#ecfeff;color:#0e7490;border:1px dashed #67c6d6}
+.srcb.lk{background:#fef3c7;color:#92400e}
+.tby{display:flex;align-items:center;gap:7px;font-size:12.5px;line-height:1.3;margin-top:2px}
+.tby .av{width:24px;height:24px;font-size:10.5px}
+.tby b{color:#92400e;font-weight:600}
+.val.ops{line-height:2}
+.val.ops .av{margin:0 2px}
