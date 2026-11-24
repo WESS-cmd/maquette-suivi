@@ -301,14 +301,23 @@
   let clk = 40;
   const nowS = () => { clk++; return `23/11 ${16 + Math.floor(clk / 60)}:${String(clk % 60).padStart(2, "0")}`; };
   const logx = (x, t) => x.log.push({ d: nowS(), w: ME, t });
-  const optTotal = x => x.options.reduce((a, o) => a + (o.p || 0), 0);
+  const optQ = o => o.q || 1;
+  const optTotal = x => x.options.reduce((a, o) => a + (o.p || 0) * optQ(o), 0);
+  const OCAT = l => /carboglace|dangereuses|lithium|Dry Ice/i.test(l) || /\bADR\b/.test(l) ? "Marchandises réglementées"
+    : /^Livraison|Relivraison|Urgence|Garantie|Corse|Zone/i.test(l) ? "Livraison"
+    : /^Enlèvement|Passage à vide/i.test(l) ? "Enlèvement"
+    : /^Colis|Conditionnement|Réajustement/i.test(l) ? "Colis"
+    : /adresse|Stockage/i.test(l) ? "Incidents & corrections" : "Services";
+  const OCATS = ["Livraison", "Enlèvement", "Colis", "Marchandises réglementées", "Incidents & corrections", "Services"];
+  const grille = l => { const o = OPTIONS.find(o => o[0] === l); return o ? o[1] : null; };
+  const OSRC = { manuel: ["Saisie opérateur", "tms"], auto: ["Auto · écart de poids", "lk"], import: ["Export transporteur", "imp"] };
   function extra(e) {
     if (e._x) return e._x;
     const kg = parseInt(e.poids), livre = e.statut === "livre";
     const x = e._x = {
       dims: ["45×40×15", "50×10×30", "30×30×30", "60×40×40", "20×15×10"][e.id % 5] + " cm",
       nature: "STATUT C", cat: e.contenu === "Document" ? "Document" : "Marchandise",
-      options: e.ext ? [{ l: "Enlèvement chez un tiers", p: 15, by: "Léa FIXMAN", d: "03/11 10:16" }] : [],
+      options: e.ext ? [{ l: "Enlèvement chez un tiers", p: 15, q: 1, by: "Léa FIXMAN", d: "03/11 10:16", src: "manuel", note: "Départ chez un tiers (adresse extérieure)" }] : [],
       noFact: false, comments: [], snaps: 4 + (e.id % 9),
       dem: { id: "dem-17930" + (21283932 + e.id * 917) + "-" + ["cgoy4", "ab7k2", "pq9x1", "zt3m8"][e.id % 4], canal: ["email", "portail", "téléphone"][e.id % 3], statut: "confirmee",
         recue: new Date(e.ramasse.getTime() - 864e5), service: e.carrier === "TNT" ? "Expédition National Express" : "Expédition " + e.presta, poids: kg + " kg", pal: 1, prix: +(e.ht * .7).toFixed(2) },
@@ -321,6 +330,11 @@
     x.src = e.carrier !== "MTI Express" && e.id % 3 === 2
       ? { k: "import", by: OPS[(e.id >> 1) % 4], d: fmtDT(cd), file: `export_${cslug(e.carrier)}_${String(cd.getDate()).padStart(2, "0")}${String(cd.getMonth() + 1).padStart(2, "0")}.csv` }
       : { k: "tms", by: OPS[e.id % 4], d: fmtDT(cd) };
+    if (e.id % 5 === 1) x.options.push({ l: "Livraison avant 12h", p: 8, q: 1, by: x.src.by, d: x.src.d, src: "manuel", note: "Demandé par le client" });
+    if (e.id % 11 === 3) x.options.push({ l: "Assurance / valeur déclarée", p: 5, q: 1, by: x.src.by, d: x.src.d, src: "manuel", note: "Valeur déclarée 700 €" });
+    if (x.src.k === "import" && e.id % 2 === 0) x.options.push({ l: "Correction / changement d'adresse", p: 15, q: 1, by: x.src.by, d: x.src.d, src: "import", note: `Surcharge présente dans ${x.src.file}` });
+    if (x.src.k === "import" && e.id % 4 === 1) x.options.push({ l: "Livraison le samedi", p: 12, q: 1, by: x.src.by, d: x.src.d, src: "import", note: `Surcharge présente dans ${x.src.file}` });
+    if (e.id % 13 === 6) x.options.push({ l: "Livraison sur rendez-vous (créneau 1 h)", p: 12, q: 1, by: OPS[2], d: "21/11 14:05", src: "manuel", note: "Prix négocié client (grille 15 €)" });
     if (x.src.k === "import") { x.dem = null; x.log.push({ d: x.src.d, w: x.src.by, t: `Envoi importé depuis l'export du site ${e.carrier} (${x.src.file}) — pas de demande liée` }); }
     else x.log.push({ d: x.src.d, w: x.src.by, t: "Envoi créé dans le TMS — demande " + x.dem.id + " (" + x.dem.canal + ")" });
     if (x.options.length) x.log.push({ d: "03/11 10:16", w: "Léa FIXMAN", t: "Option ajoutée : Enlèvement chez un tiers (15.00 €)" });
@@ -620,19 +634,44 @@
       </div>`;
     }
 
-    if (tab === "fact") html = `
-      <div class="sec">${H("€", "Facturation", eur(e.ht + totalOpt) + " HT")}
-        ${x.factValide ? `<div class="okline">✓ Facturation validée</div>` : x.noFact ? "" : e.statut === "livre" ? `<div class="todoline">À facturer : envoi livré, facturation pas encore validée <button class="btn sm primary" id="f-val">Valider la facturation</button></div>` : ""}
-        <button class="link danger-l" id="nofact">${x.noFact ? "✓ Envoi marqué « ne pas facturer » — annuler" : "Ne pas facturer cet envoi"}</button>
-        ${state.editPrix === id ? `<div class="r2"><span>Prix de vente HT</span><span class="prix-ed"><input id="px-in" class="fld" value="${e.ht.toFixed(2)}"> € <button class="btn sm primary" id="px-ok">OK</button><button class="link" id="px-no">Annuler</button></span></div>`
-          : row2("Prix de vente HT", `<b>${eur(e.ht)}</b> <button class="link" id="px-ed" style="font-size:12px">modifier</button>`)}
-        ${row2("Options vendues", x.options.length ? eur(totalOpt) : "—")}
-        ${row2("Total HT", `<b>${eur(e.ht + totalOpt)}</b>`, "tot")}
-        <div class="sub-h" style="margin-top:12px">Ajouter une option vendue</div>
-        <div class="opt-add"><select id="opt-sel" class="fld"><option value="">Choisir une option…</option>${OPTIONS.map((o, i) => `<option value="${i}">${o[0]} — ${o[1] == null ? "tarif à saisir" : eur(o[1])}</option>`).join("")}</select><input id="opt-p" class="fld" placeholder="€" style="width:90px"><button class="btn sm" id="opt-add" disabled>Ajouter</button></div>
-      </div>
-      <div class="sec">${H("🛡", "Options vendues", x.options.length)}
-        ${x.options.length ? x.options.map((o, i) => `<div class="opt"><div><b style="font-weight:500">${esc(o.l)}</b><div class="muted" style="font-size:12px">${eur(o.p || 0)} HT facturés · ajoutée par ${esc(o.by)} le ${o.d}</div></div><button class="link danger-l" data-rm="${i}">🗑 Retirer</button></div>`).join("") : `<div class="muted" style="font-size:13px">Aucune option vendue.</div>`}
+    if (tab === "fact") {
+      const byCat = OCATS.map(c => [c, x.options.map((o, i) => [o, i]).filter(([o]) => OCAT(o.l) === c)]).filter(c => c[1].length);
+      const ro = lk;
+      const oline = ([o, i]) => { const g = grille(o.l), src = OSRC[o.src || "manuel"], diff = g != null && Math.abs(g - o.p) > .001;
+        return `<tr class="fo"><td><b>${esc(o.l)}</b><div class="fo-d"><span class="srcb ${src[1]}">${src[0]}</span> ${avatar(o.by)} ${esc(shortN(o.by))} · ${o.d}${diff ? ` · <span class="c-warn">grille ${eur(g)}</span>` : g == null && !/Réajustement/.test(o.l) ? ` · <span class="muted">tarif saisi</span>` : ""}${o.note ? `<div class="fo-n">${esc(o.note)}</div>` : ""}</div></td>
+          <td class="n">${optQ(o)}</td><td class="n">${eur(o.p || 0)}</td><td class="n"><b>${eur((o.p || 0) * optQ(o))}</b></td><td class="n">${ro ? "" : `<button class="link danger-l" data-rm="${i}" title="Retirer l'option">🗑</button>`}</td></tr>`; };
+      const tot = e.ht + totalOpt, tva = tot * .2;
+      html = `
+      <div class="sec">${H("€", "Facturation", eur(tot) + " HT")}
+        ${x.factValide ? `<div class="okline">✓ Facturation validée</div>` : x.noFact ? "" : e.statut === "livre" ? `<div class="todoline">À facturer : envoi livré, facturation pas encore validée <button class="btn sm primary" id="f-val">Valider la facturation</button></div>` : `<div class="muted" style="font-size:12.5px;margin-bottom:6px">Facturable une fois l'envoi livré.</div>`}
+        <table class="ftab">
+          <thead><tr><th>Ligne</th><th class="n">Qté</th><th class="n">PU HT</th><th class="n">Total HT</th><th></th></tr></thead>
+          <tbody>
+            <tr class="fcat"><td colspan="5">Transport</td></tr>
+            <tr class="fo"><td><b>${esc(e.carrier)} — ${esc(e.presta)}</b><div class="fo-d">${e.colis} colis · ${esc(e.poids)} · ${esc(e.dep.ville)} → ${esc(e.liv.ville)}${x.dem ? ` · prix proposé à la demande ${eur(x.dem.prix)}` : ` · <span class="srcb imp">Import ${esc(e.carrier)}</span>`}</div></td>
+              <td class="n">1</td><td class="n">${state.editPrix === id ? `<span class="prix-ed"><input id="px-in" class="fld" value="${e.ht.toFixed(2)}" style="width:80px"> <button class="btn sm primary" id="px-ok">OK</button><button class="link" id="px-no">✕</button></span>` : `${eur(e.ht)}${ro ? "" : ` <button class="link" id="px-ed" title="Modifier le prix de vente">✎</button>`}`}</td><td class="n"><b>${eur(e.ht)}</b></td><td></td></tr>
+            ${byCat.map(([c, l]) => `<tr class="fcat"><td colspan="5">${c} <span class="muted">· ${l.length} option${l.length > 1 ? "s" : ""} · ${eur(l.reduce((a, [o]) => a + o.p * optQ(o), 0))}</span></td></tr>${l.map(oline).join("")}`).join("")}
+            ${x.options.length ? "" : `<tr><td colspan="5" class="muted" style="font-size:13px;padding:10px 6px">Aucune option vendue sur cet envoi.</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="3">Transport</td><td class="n">${eur(e.ht)}</td><td></td></tr>
+            <tr><td colspan="3">Options (${x.options.length})</td><td class="n">${eur(totalOpt)}</td><td></td></tr>
+            <tr class="t"><td colspan="3">Total HT</td><td class="n">${eur(tot)}</td><td></td></tr>
+            <tr><td colspan="3">TVA 20 %</td><td class="n">${eur(tva)}</td><td></td></tr>
+            <tr class="t2"><td colspan="3">Total TTC</td><td class="n">${eur(tot + tva)}</td><td></td></tr>
+          </tfoot>
+        </table>
+        ${ro ? `<div class="muted" style="font-size:12.5px;margin-top:8px">★ Envoi traité : facturation en consultation seule. Rouvrir l'envoi pour la modifier.</div>` : `
+        <div class="sub-h" style="margin-top:14px">Ajouter une option</div>
+        <div class="opt-add2">
+          <select id="opt-sel" class="fld"><option value="">Choisir une option…</option>${OCATS.map(c => `<optgroup label="${c}">${OPTIONS.map((o, i) => [o, i]).filter(([o]) => OCAT(o[0]) === c).map(([o, i]) => `<option value="${i}">${o[0]} — ${o[1] == null ? "tarif à saisir" : eur(o[1])}</option>`).join("")}</optgroup>`).join("")}</select>
+          <label>Qté <input id="opt-q" class="fld" value="1" style="width:52px"></label>
+          <label>PU HT <input id="opt-p" class="fld" placeholder="€" style="width:80px"></label>
+          <input id="opt-n" class="fld" placeholder="Motif / commentaire (facultatif)" style="flex:1;min-width:160px">
+          <button class="btn sm primary" id="opt-add" disabled>Ajouter</button>
+        </div>
+        <div class="muted" id="opt-hint" style="font-size:12px;margin-top:4px"></div>
+        <button class="link danger-l" id="nofact" style="margin-top:10px">${x.noFact ? "✓ Envoi marqué « ne pas facturer » — annuler" : "Ne pas facturer cet envoi"}</button>`}
       </div>
       <div class="sec">${!x.dem ? `${H("📋", "Demande liée", `<span class="srcb imp">Import ${esc(e.carrier)}</span>`)}
         <div class="muted" style="font-size:13px;margin-bottom:8px">Aucune demande : cet envoi a été fait sur le site ${esc(e.carrier)}, puis intégré au TMS par l'export transporteur.</div>
@@ -641,6 +680,7 @@
         ${row2("Canal", x.dem.canal)}${row2("Statut", x.dem.statut)}${row2("Reçue le", fmtDT(x.dem.recue))}${row2("Service demandé", x.dem.service)}
         ${row2("Enlèvement demandé", e.ramasse.toISOString().slice(0, 10))}${row2("Poids annoncé", x.dem.poids)}${row2("Palettes", x.dem.pal)}${row2("Nature annoncée", x.nature)}${row2("Prix proposé", `<b>${x.dem.prix.toFixed(2)} € HT</b>`)}`}
       </div>`;
+    }
 
     if (tab === "docs") html = `
       <div class="sec">${H("🗄", "Pièces conservées", x.preuve ? 1 : 0)}
@@ -683,7 +723,7 @@
     if (sel) { sel.onchange = () => $("#st-apply").disabled = !sel.value; $("#st-apply").onclick = () => { logx(x, `Statut changé : « ${sel.value} »`); toast(`Statut « ${sel.value} » appliqué`); re(); }; }
     if ($("#rp-go")) $("#rp-go").onclick = () => { const i = $("#rp-i").value || "Message"; logx(x, `Instruction envoyée à ${e.carrier} : ${i}`); toast("Envoyé à " + e.carrier); re(); };
     if ($("#ec-add")) {
-      $("#ec-add").onclick = () => { const d = x.mesure - kg; x.options.push({ l: `Réajustement poids (+${d} kg)`, p: d * 4, by: ME, d: nowS() }); x.ecartOk = true; logx(x, `Surcoût poids ajouté en option : +${d} kg = ${eur(d * 4)}`); toast("Surcoût ajouté dans Facturation"); re(); };
+      $("#ec-add").onclick = () => { const d = x.mesure - kg; x.options.push({ l: `Réajustement poids (+${d} kg)`, p: 4, q: d, by: ME, d: nowS(), src: "auto", note: `Pesé ${x.mesure} kg par le transporteur, déclaré ${kg} kg · 4,00 € / kg` }); x.ecartOk = true; logx(x, `Surcoût poids ajouté en option : +${d} kg = ${eur(d * 4)}`); toast("Surcoût ajouté dans Facturation"); re(); };
       $("#ec-ign").onclick = () => { x.ecartOk = true; logx(x, "Écart de poids accepté sans surcoût"); re(); };
     }
     if ($("#ec-fix")) $("#ec-fix").onclick = () => toast("Corriger le poids / les dimensions");
@@ -696,8 +736,12 @@
     }
     const os = $("#opt-sel");
     if (os) {
-      os.onchange = () => { const o = OPTIONS[os.value]; $("#opt-p").value = o && o[1] != null ? o[1].toFixed(2) : ""; $("#opt-add").disabled = !os.value; };
-      $("#opt-add").onclick = () => { const o = OPTIONS[os.value]; const p = parseFloat(($("#opt-p").value || "0").replace(",", ".")) || 0; x.options.push({ l: o[0], p, by: ME, d: nowS() }); logx(x, `Option ajoutée : ${o[0]} (${eur(p)})`); toast("Option ajoutée : " + o[0]); re(); };
+      const hint = () => { const o = OPTIONS[os.value]; if (!o) return $("#opt-hint").textContent = ""; const p = parseFloat(($("#opt-p").value || "0").replace(",", ".")) || 0, q = Math.max(1, parseInt($("#opt-q").value) || 1);
+        $("#opt-hint").innerHTML = `${OCAT(o[0])} · ${q} × ${eur(p)} = <b>${eur(p * q)} HT</b>${o[1] != null && Math.abs(o[1] - p) > .001 ? ` · <span class="c-warn">différent de la grille (${eur(o[1])}) — indiquez le motif</span>` : o[1] == null ? " · tarif à saisir" : " · tarif grille"}`; };
+      os.onchange = () => { const o = OPTIONS[os.value]; $("#opt-p").value = o && o[1] != null ? o[1].toFixed(2) : ""; $("#opt-add").disabled = !os.value; hint(); };
+      $("#opt-p").oninput = hint; $("#opt-q").oninput = hint;
+      $("#opt-add").onclick = () => { const o = OPTIONS[os.value]; const p = parseFloat(($("#opt-p").value || "0").replace(",", ".")) || 0, q = Math.max(1, parseInt($("#opt-q").value) || 1), note = $("#opt-n").value.trim();
+        x.options.push({ l: o[0], p, q, by: ME, d: nowS(), src: "manuel", note }); logx(x, `Option ajoutée : ${o[0]} (${q} × ${eur(p)} = ${eur(p * q)})${note ? " — " + note : ""}`); toast("Option ajoutée : " + o[0]); re(); };
       $$("[data-rm]").forEach(b => b.onclick = () => { const o = x.options.splice(+b.dataset.rm, 1)[0]; logx(x, `Option retirée : ${o.l}`); re(); });
       $("#nofact").onclick = () => { x.noFact = !x.noFact; logx(x, x.noFact ? "Marqué « ne pas facturer »" : "Remis en facturation"); re(); };
     }
