@@ -131,7 +131,7 @@
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
       <td class="tc">${cb(e.carrier)}<div class="presta">${esc(e.presta)}</div></td>
-      <td><div class="bord">${esc(e.bord)}</div><div class="ref">${esc(e.ref)}${e.colis > 1 ? ` · ${e.colis} colis` : ""}</div></td>
+      <td><div class="bord">${esc(e.bord)}</div><div class="ref">${esc(e.ref)}${e.colis > 1 ? ` · ${e.colis} colis` : ""}</div>${mailBadge(e)}</td>
       <td><div class="cl">${esc(e.client)}</div><div class="cl-sub">${esc(e.sub || "—")}</div>${e.tags.filter(t => t[0] !== "ext").map(t => `<span class="tag ${t[0]}">${t[1]}</span>`).join("")}</td>
       <td><div class="trajet">
         <div class="pt"><span class="lbl">Dép.</span><span class="nm">${esc(e.dep.nom)}</span><span class="vl">${esc(e.dep.cp)} ${esc(e.dep.ville)}</span>${e.ext ? `<span class="tag ext" style="margin:0">Extérieur</span>` : ""}</div>
@@ -151,6 +151,7 @@
       tr.onclick = ev => {
         if (ev.target.classList.contains("ck")) { ev.stopPropagation(); state.sel.has(id) ? state.sel.delete(id) : state.sel.add(id); renderBulk(); tr.classList.toggle("sel"); return; }
         if (ev.target.dataset.star) { ev.stopPropagation(); askLock(ENVOIS[id]); return; }
+        if (ev.target.closest("[data-mail]")) { ev.stopPropagation(); mstate.open = true; openEnvoi(id); return; }
         if (ev.target.dataset.a) {
           ev.stopPropagation();
           const a = ev.target.dataset.a, k = { "Valider la facturation": "valider", "Demander la preuve": "preuve", "Relancer": "relance", "Ouvrir une enquête": "enquete", "Prévenir": "client", "Rafraîchir": "refresh" }[a];
@@ -221,16 +222,17 @@
   $$("#density button").forEach(b => b.onclick = () => { document.body.classList.toggle("compact", b.dataset.d === "compact"); $$("#density button").forEach(x => x.classList.toggle("on", x === b)); });
 
   // ================= PANNEAU DE DÉTAIL =================
-  function openDrawer() { $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false"); $("#scrim").hidden = false; }
-  function closeDrawer() { state.ask = null; state.editPrix = null; $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); $("#scrim").hidden = true; if (state.open !== null) { state.open = null; $$("#rows tr.open").forEach(t => t.classList.remove("open")); } }
+  function openDrawer() { $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false"); $("#scrim").hidden = false; renderMail(); }
+  function closeDrawer() { state.ask = null; state.editPrix = null; $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); state.enl = null; mstate.open = false; mstate.compose = null; $("#mail-tab").hidden = true; $("#mailp").classList.remove("on"); document.body.classList.remove("mail-open"); $("#scrim").hidden = true; if (state.open !== null) { state.open = null; $$("#rows tr.open").forEach(t => t.classList.remove("open")); } }
   $("#d-close").onclick = closeDrawer; $("#scrim").onclick = closeDrawer;
+  $("#mail-tab").onclick = () => { mstate.open = !mstate.open; renderMail(); if (!mstate.open) refreshFiche(); };
   $("#d-prev").onclick = () => navEnvoi(-1); $("#d-next").onclick = () => navEnvoi(1);
   const kb = $("#kb");
   $("#kb-btn").onclick = () => kb.hidden = !kb.hidden; $("#kb-close").onclick = () => kb.hidden = true;
   document.addEventListener("keydown", e => {
     const t = e.target, typing = /INPUT|TEXTAREA|SELECT/.test(t.tagName);
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#gsearch").focus(); return; }
-    if (e.key === "Escape") { if (typing) return t.blur(); if (!kb.hidden) return kb.hidden = true; return closeDrawer(); }
+    if (e.key === "Escape") { if (typing) return t.blur(); if (!kb.hidden) return kb.hidden = true; if (mstate.open) { mstate.open = false; renderMail(); return; } return closeDrawer(); }
     if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "?") { kb.hidden = !kb.hidden; return; }
     if (e.key === "/") { e.preventDefault(); ($("#page-enlev").hidden ? $("#q") : $("#qe")).focus(); return; }
@@ -343,6 +345,7 @@
     else {
       const m = { preuve: "Preuve de livraison demandée à " + e.carrier, enquete: "Enquête ouverte chez " + e.carrier, client: "Mail préparé pour le client", relance: "Relance envoyée à " + e.carrier, refresh: "Suivi rafraîchi" }[k] || k;
       logx(x, m); toast(m);
+      if (["preuve", "enquete", "client", "relance"].includes(k)) { const so = state.open, sk = state.dkind; state.open = e.id; state.dkind = "envoi"; autoMail(ctx(), k); state.open = so; state.dkind = sk; }
     }
     render(); if (reopen && state.open === e.id) openEnvoi(e.id, state.tab);
   }
@@ -362,11 +365,121 @@
     const L = list(), i = L.findIndex(y => y.id === state.open);
     const n = L[i + d]; if (n) openEnvoi(n.id, state.tab); else toast(d > 0 ? "Dernier envoi de la liste" : "Premier envoi de la liste");
   }
+
+  // ===== Mails rattachés à la demande =====
+  const MBOX = "suivi@mti-express.fr";
+  const CMAIL = { "TNT": "service.client@tnt.fr", "UPS": "support.fr@ups.com", "DHL Express": "cs.express.fr@dhl.com", "Chronopost": "relation.client@chronopost.fr", "FedEx": "service.fr@fedex.com", "GLS France": "service.client@gls-france.com", "GEODIS": "suivi.messagerie@geodis.com", "MTI Express": "exploitation@mti-express.fr" };
+  const slug = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
+  const cliMail = (ct, cl) => (/^(service|accueil|réception|m\.)/i.test(ct) ? "contact" : slug(ct.split(" ")[0])) + "@" + slug(cl).slice(0, 14) + ".fr";
+  const mstate = { open: false, compose: null, linking: false, sel: null };
+  const INBOX = [ // mails reçus non rattachés, proposés au rattachement
+    { from: "Samira RIABI <samira@nysos.fr>", subj: "Livraison prévue quand ?", body: "Bonjour, pouvez-vous me dire quand mon colis sera livré ? Merci.", d: "23/11 15:12" },
+    { from: "TNT <service.client@tnt.fr>", subj: "Avis de passage — destinataire absent", body: "Le destinataire était absent lors du passage. Une nouvelle tentative aura lieu demain.", d: "23/11 14:05" },
+    { from: "Service achats <achats@ffgolf.fr>", subj: "Demande de facture", body: "Bonjour, merci de nous transmettre la facture de cet envoi.", d: "23/11 11:40" }
+  ];
+  function ctx() { // objet courant du panneau
+    if (state.dkind === "envoi" && state.open !== null) return ctxE(ENVOIS[state.open]);
+    if (state.dkind === "enl" && state.enl != null) return ctxL(ENLEVEMENTS[state.enl]);
+    return null;
+  }
+  function ctxE(e) { { const x = extra(e); return { kind: "envoi", o: e, x, ref: e.ref, bord: e.bord, carrier: e.carrier, cli: e.client, ct: e.depCt, cmail: cliMail(e.depCt, e.client), label: "cet envoi" }; } }
+  function ctxL(x) { { return { kind: "enl", o: x, x, ref: "ENL-" + (2026100 + x.id), bord: x.conf || "", carrier: x.carrier, cli: x.client, ct: x.lieu.contact, cmail: cliMail(x.lieu.contact, x.client), label: "cet enlèvement" }; } }
+  const tagS = c => `[${c.ref}${c.bord ? " · " + c.bord : ""}]`;
+  function mailsOf(c) {
+    const x = c.x; if (x.mails) return x.mails;
+    const M = x.mails = [];
+    const cli = `${c.ct} <${c.cmail}>`, car = `${c.carrier} <${CMAIL[c.carrier] || "contact@transporteur.fr"}>`;
+    if (c.kind === "envoi") {
+      const e = c.o;
+      if (x.dem.canal === "email") M.push({ dir: "in", from: cli, to: MBOX, d: fmtDT(x.dem.recue), subj: `Demande d'expédition ${e.dep.ville} → ${e.liv.ville}`, body: `Bonjour,\n\nMerci d'organiser l'expédition de ${e.colis} colis (${e.poids}) depuis ${e.dep.nom}, ${e.dep.ville}, vers ${e.liv.nom}, ${e.liv.ville}.\n\nCordialement,\n${c.ct}`, how: "Demande d'origine — rattachée à la création de l'envoi" });
+      M.push({ dir: "out", from: MBOX, to: cli, d: fmtDT(new Date(e.ramasse.getTime() - 18 * 36e5)), subj: `${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nVotre envoi est enregistré sous la référence ${e.ref}. Vous trouverez le bordereau ${c.carrier} n° ${e.bord} en pièce jointe, à coller sur le colis.\n\nL'équipe MTI Express`, pj: "Bordereau_" + e.bord + ".pdf", how: "Envoyé automatiquement par le TMS" });
+      if (e.statut === "anomalie") M.push({ dir: "in", from: car, to: MBOX, d: fmtDT(new Date(NOW.getTime() - e.lastScanH * 36e5)), subj: `${tagS(c)} Avis d'anomalie sur votre envoi`, body: `Bonjour,\n\nUne anomalie a été signalée sur l'envoi ${e.bord} : ${e.statLbl || "adresse incomplète / destinataire absent"}. Merci de nous indiquer la marche à suivre.\n\n${c.carrier} — Service client`, unread: true, how: "Rattaché automatiquement : n° de bordereau dans l'objet" });
+      if (e.statut !== "livre" && e.id % 6 === 2) M.push({ dir: "in", from: cli, to: MBOX, d: "23/11 09:" + String(10 + e.id % 40).padStart(2, "0"), subj: `RE: ${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nOù en est ce colis ? Le destinataire ne l'a toujours pas reçu.\n\nMerci,\n${c.ct}`, unread: true, how: "Rattaché automatiquement : réponse au fil" });
+    } else {
+      const o = c.o;
+      if (o.demandePar === "Mail") M.push({ dir: "in", from: cli, to: MBOX, d: fmtD(new Date(o.date.getTime() - 2 * 864e5)) + " 10:12", subj: `Demande d'enlèvement — ${o.lieu.ville}`, body: `Bonjour,\n\nPouvez-vous programmer un enlèvement de ${o.colis} colis (${o.poids}) chez ${o.lieu.nom}, ${o.lieu.adr}, ${o.lieu.cp} ${o.lieu.ville} ?\nCréneau souhaité : ${o.slot}.\n\n${o.lieu.contact} — ${o.lieu.tel}`, how: "Demande d'origine — rattachée à la création de l'enlèvement" });
+      M.push({ dir: "out", from: MBOX, to: cli, d: fmtD(new Date(o.date.getTime() - 2 * 864e5)) + " 10:30", subj: `${tagS(c)} Votre demande d'enlèvement est bien reçue`, body: `Bonjour ${c.ct},\n\nNous avons bien reçu votre demande d'enlèvement (${o.colis} colis, ${o.slot}). Nous revenons vers vous dès la confirmation du transporteur.\n\nMTI Express — Exploitation`, how: "Accusé de réception envoyé automatiquement par le TMS" });
+      if (o.etat !== "a_reserver") M.push({ dir: "out", from: MBOX, to: car, d: fmtD(new Date(o.date.getTime() - 864e5)) + " 14:30", subj: `${tagS(c)} Demande d'enlèvement ${o.lieu.cp} ${o.lieu.ville}`, body: `Bonjour,\n\nMerci de programmer un enlèvement :\n${o.lieu.nom}, ${o.lieu.adr}, ${o.lieu.cp} ${o.lieu.ville}\n${o.colis} colis · ${o.poids} · créneau ${o.slot}\nContact sur place : ${o.lieu.contact} ${o.lieu.tel}\n\nMTI Express — Exploitation`, how: "Envoyé à la réservation" });
+      if (o.conf && !o.estime) M.push({ dir: "in", from: car, to: MBOX, d: fmtD(new Date(o.date.getTime() - 864e5)) + " 15:02", subj: `RE: ${tagS(c)} Confirmation d'enlèvement n° ${o.conf}`, body: `Bonjour,\n\nNous confirmons l'enlèvement n° ${o.conf}, ${o.slot}.\n\n${c.carrier}`, how: "Rattaché automatiquement : réponse au fil" });
+      if (o.etat === "echec") M.push({ dir: "in", from: car, to: MBOX, d: fmtD(o.date) + " 18:20", subj: `${tagS(c)} Enlèvement non effectué`, body: `Bonjour,\n\nLe chauffeur n'a pas pu effectuer l'enlèvement (${o.motif || "colis non prêt"}). Merci de reprogrammer.\n\n${c.carrier}`, unread: true, how: "Rattaché automatiquement : n° d'enlèvement dans l'objet" });
+    }
+    return M;
+  }
+  const unreadOf = c => mailsOf(c).filter(m => m.unread).length;
+  function mailBadge(e) {
+    const c = ctxE(e), n = unreadOf(c), t = mailsOf(c).length;
+    if (n) return `<button class="mbadge new" data-mail="1" title="${n} mail(s) non lu(s) — ouvrir les mails">✉ ${n} nouveau${n > 1 ? "x" : ""}</button>`;
+    return t ? `<button class="mbadge" data-mail="1" title="Mails rattachés — ouvrir">✉ ${t}</button>` : "";
+  }
+  function pushMail(c, to, subj, body, how) {
+    if (!c) return; mailsOf(c).push({ dir: "out", from: MBOX, to, d: nowS(), subj: `${tagS(c)} ${subj}`, body, how: how || "Envoyé depuis la fiche", by: ME });
+    if (c.kind === "envoi") logx(c.x, `Mail envoyé à ${to.split(" <")[0]} : ${subj}`); else c.x.hist.push([`Mail envoyé à ${to.split(" <")[0]} : ${subj}`, ME]);
+  }
+  const TPL = c => ({
+    relance: { to: "car", s: "Relance — merci de nous donner des nouvelles", b: `Bonjour,\n\nNous n'avons pas de nouvelles de l'envoi ${c.bord} depuis plus de 48 h. Pouvez-vous nous indiquer où il se trouve ?\n\nMTI Express — Suivi` },
+    preuve: { to: "car", s: "Demande de preuve de livraison", b: `Bonjour,\n\nMerci de nous transmettre la preuve de livraison (POD) de l'envoi ${c.bord}.\n\nMTI Express — Suivi` },
+    enquete: { to: "car", s: "Ouverture d'enquête", b: `Bonjour,\n\nNous ouvrons une enquête sur l'envoi ${c.bord}. Merci de nous tenir informés.\n\nMTI Express — Suivi` },
+    client: { to: "cli", s: "Information sur votre envoi", b: `Bonjour ${c.ct},\n\nNous vous informons que votre envoi ${c.ref} (${c.carrier} ${c.bord}) …\n\nL'équipe MTI Express` },
+    conf: { to: "car", s: "Demande de confirmation d'enlèvement", b: `Bonjour,\n\nMerci de nous confirmer l'enlèvement prévu (n° de confirmation et créneau).\n\nMTI Express — Exploitation` }
+  });
+  function renderMail() {
+    const c = ctx(), P = $("#mailp"), T = $("#mail-tab");
+    const on = $("#drawer").classList.contains("on") && !!c;
+    T.hidden = !on; if (!on) { P.classList.remove("on"); document.body.classList.remove("mail-open"); return; }
+    const M = mailsOf(c), nu = unreadOf(c);
+    T.innerHTML = `<span class="mt-ch">${mstate.open ? "›" : "‹"}</span><span class="mt-l">Mails (${M.length})</span>${nu ? `<span class="mt-n">${nu}</span>` : ""}`;
+    T.title = mstate.open ? "Masquer les mails" : "Afficher les mails rattachés à " + c.label;
+    P.classList.toggle("on", mstate.open); document.body.classList.toggle("mail-open", mstate.open);
+    if (!mstate.open) return;
+    if (mstate.open) M.forEach(m => { if (m.unread) { m.unread = false; m._was = true; } });
+    const cliA = `${c.ct} <${c.cmail}>`, carA = `${c.carrier} <${CMAIL[c.carrier] || "contact@transporteur.fr"}>`;
+    const cp = mstate.compose;
+    const list = M.slice().reverse().map((m, i) => { const k = M.length - 1 - i; return `<div class="ml ${m.dir} ${m._was ? "new" : ""} ${mstate.sel === k ? "open" : ""}" data-k="${k}">
+      <div class="ml-h"><span class="ml-dir">${m.dir === "in" ? "Reçu" : "Envoyé"}</span><b class="ml-f">${esc((m.dir === "in" ? m.from : m.to).split(" <")[0])}</b><span class="ml-d">${m.d}</span></div>
+      <div class="ml-s">${esc(m.subj)}</div>
+      ${mstate.sel === k ? `<div class="ml-meta">De : ${esc(m.from)}<br>À : ${esc(m.to)}</div><div class="ml-b">${esc(m.body).replace(/\n/g, "<br>")}</div>${m.pj ? `<div class="ml-pj">📎 ${esc(m.pj)}</div>` : ""}<div class="ml-how">${esc(m.how || "")}${m.by ? " · " + esc(m.by) : ""}</div><div class="ml-act"><button class="btn sm" data-rep="${k}">Répondre</button><button class="btn sm" data-fwd="${k}">Transférer</button></div>` : `<div class="ml-p">${esc(m.body.replace(/\n+/g, " ").slice(0, 110))}…</div>`}
+    </div>`; }).join("");
+    $("#mail-body").innerHTML = `
+      <div class="mp-h"><div><b>Mails de ${c.label}</b><div class="muted mp-sub">Tout mail dont l'objet contient <span class="mono">${esc(c.ref)}</span>${c.bord ? ` ou <span class="mono">${esc(c.bord)}</span>` : ""} est rattaché automatiquement, réponses comprises.</div></div><button class="icon-btn" id="mp-x" aria-label="Fermer les mails">✕</button></div>
+      <div class="mp-acts"><button class="btn sm primary" id="mp-new">✉ Nouveau mail</button><button class="btn sm" id="mp-link">Rattacher un mail reçu</button></div>
+      ${mstate.linking ? `<div class="mp-link"><div class="sub-h">Boîte ${MBOX} — mails non rattachés</div>${INBOX.length ? INBOX.map((m, i) => `<div class="ib"><div><b>${esc(m.from.split(" <")[0])}</b> · <span class="muted">${m.d}</span><div>${esc(m.subj)}</div></div><button class="btn sm" data-ib="${i}">Rattacher</button></div>`).join("") : `<div class="muted" style="font-size:13px">Aucun mail en attente.</div>`}</div>` : ""}
+      ${cp ? `<div class="mp-comp">
+        <div class="tpls">${Object.entries({ relance: "Relance", preuve: "Preuve de livraison", enquete: "Enquête", client: "Prévenir le client", ...(c.kind === "enl" ? { conf: "Confirmation" } : {}) }).map(([k, l]) => `<button class="chip" data-tpl="${k}">${l}</button>`).join("")}</div>
+        <label class="fl">À<select id="mc-to" class="fld"><option value="cli" ${cp.to === "cli" ? "selected" : ""}>${esc(cliA)} — client</option><option value="car" ${cp.to === "car" ? "selected" : ""}>${esc(carA)} — transporteur</option></select></label>
+        <label class="fl">Objet<div class="subj"><span class="mono tagp">${esc(tagS(c))}</span><input id="mc-s" class="fld" value="${esc(cp.s || "")}" placeholder="Objet du mail"></div></label>
+        <label class="fl">Message<textarea id="mc-b" class="fld" rows="7">${esc(cp.b || "")}</textarea></label>
+        <div class="muted" style="font-size:12px;margin:4px 0 8px">La référence reste dans l'objet : la réponse reviendra ici toute seule.</div>
+        <div style="display:flex;gap:8px"><button class="btn sm primary" id="mc-go">Envoyer</button><button class="link" id="mc-no">Annuler</button></div></div>` : ""}
+      <div class="mp-list">${list || `<div class="muted" style="font-size:13px;padding:10px 0">Aucun mail rattaché pour l'instant.</div>`}</div>`;
+    M.forEach(m => delete m._was);
+    const re = () => { renderMail(); refreshFiche(); };
+    $("#mp-x").onclick = () => { mstate.open = false; renderMail(); };
+    $("#mp-new").onclick = () => { mstate.compose = { to: c.kind === "enl" ? "car" : "cli", s: "", b: "" }; mstate.linking = false; renderMail(); $("#mc-s").focus(); };
+    $("#mp-link").onclick = () => { mstate.linking = !mstate.linking; renderMail(); };
+    $$("#mail-body [data-ib]").forEach(b => b.onclick = () => { const m = INBOX.splice(+b.dataset.ib, 1)[0]; M.push({ dir: "in", from: m.from, to: MBOX, d: m.d, subj: m.subj, body: m.body, how: "Rattaché manuellement par " + ME }); if (c.kind === "envoi") logx(c.x, "Mail rattaché : " + m.subj); else c.x.hist.push(["Mail rattaché : " + m.subj, ME]); mstate.linking = false; mstate.sel = M.length - 1; toast("Mail rattaché à " + c.label); re(); });
+    $$("#mail-body .ml").forEach(d => d.onclick = ev => { if (ev.target.closest("button")) return; const k = +d.dataset.k; mstate.sel = mstate.sel === k ? null : k; renderMail(); });
+    $$("#mail-body [data-rep]").forEach(b => b.onclick = () => { const m = M[+b.dataset.rep]; mstate.compose = { to: m.dir === "in" ? (m.from.includes(c.cmail) ? "cli" : "car") : (m.to.includes(c.cmail) ? "cli" : "car"), s: "RE: " + m.subj.replace(tagS(c), "").replace(/^RE:\s*/, "").trim(), b: `\n\n\n— Le ${m.d}, ${m.from.split(" <")[0]} a écrit :\n> ` + m.body.replace(/\n/g, "\n> ") }; renderMail(); $("#mc-b").focus(); $("#mc-b").setSelectionRange(0, 0); });
+    $$("#mail-body [data-fwd]").forEach(b => b.onclick = () => { const m = M[+b.dataset.fwd]; mstate.compose = { to: m.from.includes(c.cmail) ? "car" : "cli", s: "TR: " + m.subj.replace(tagS(c), "").trim(), b: `\n\n— Message transféré —\nDe : ${m.from}\n\n${m.body}` }; renderMail(); });
+    if (cp) {
+      const T2 = TPL(c);
+      $$("#mail-body [data-tpl]").forEach(b => b.onclick = () => { const t = T2[b.dataset.tpl]; mstate.compose = { to: t.to, s: t.s, b: t.b }; renderMail(); });
+      $("#mc-no").onclick = () => { mstate.compose = null; renderMail(); };
+      $("#mc-go").onclick = () => { const s = $("#mc-s").value.trim(), bd = $("#mc-b").value.trim(); if (!s) return $("#mc-s").focus(); const to = $("#mc-to").value === "cli" ? cliA : carA; pushMail(c, to, s, bd); mstate.compose = null; mstate.sel = M.length - 1; toast("Mail envoyé à " + to.split(" <")[0] + " — rattaché à " + c.label); re(); };
+    }
+  }
+  function refreshFiche() { if (state.dkind === "envoi" && state.open !== null) { render(); openEnvoi(state.open, state.tab); } else if (state.dkind === "enl" && state.enl != null) { renderEnl(); openEnl(state.enl, state.etab || "apercu"); } }
+  // mail auto quand une action « écrit » au transporteur ou au client
+  function autoMail(c, k) {
+    if (!c) return; const t = TPL(c)[k]; if (!t) return;
+    const to = t.to === "cli" ? `${c.ct} <${c.cmail}>` : `${c.carrier} <${CMAIL[c.carrier] || "contact@transporteur.fr"}>`;
+    pushMail(c, to, t.s, t.b, "Envoyé depuis le bouton « " + { relance: "Relancer", preuve: "Demander la preuve", enquete: "Ouvrir une enquête", client: "Prévenir le client", conf: "Demander la confirmation" }[k] + " »");
+  }
   const TABS_E = ["apercu", "suivi", "colis", "fact", "docs", "cmt", "hist"];
 
   function openEnvoi(id, tab = "apercu") {
     const e = ENVOIS[id];
     if (state.ask && state.ask.id !== id) state.ask = null;
+    if (state.open !== id) { mstate.sel = null; mstate.compose = null; mstate.linking = false; }
     state.open = id; state.tab = tab; state.dkind = "envoi";
     const x = extra(e), D = dotsOf(e), lk = !!x.lock;
     $$("#rows tr").forEach(t => t.classList.toggle("open", +t.dataset.id === id));
@@ -504,8 +617,9 @@
         <textarea id="cmt-t" placeholder="Ce qu'il faut savoir sur cet envoi…"></textarea>
         <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button class="btn sm primary" id="cmt-add" disabled>Ajouter</button><label class="muted" style="font-size:12.5px;display:flex;gap:5px;align-items:center"><input type="checkbox" id="cmt-vis"> Visible du client</label></div>
       </div>
-      <div class="sec">${H("✉", "Mails", "0")}
-        <div class="muted" style="font-size:13px">Aucun mail rattaché à cet envoi.</div>
+      <div class="sec">${H("✉", "Mails", mailsOf(ctx()).length)}
+        ${mailsOf(ctx()).slice(-3).reverse().map(m => `<div class="mini-ml"><span class="ml-dir ${m.dir}">${m.dir === "in" ? "Reçu" : "Envoyé"}</span><b>${esc((m.dir === "in" ? m.from : m.to).split(" <")[0])}</b> · ${esc(m.subj.replace(tagS(ctx()), "").trim())} <span class="muted">${m.d}</span></div>`).join("") || `<div class="muted" style="font-size:13px">Aucun mail rattaché.</div>`}
+        <button class="btn sm" data-ro id="open-mails" style="margin-top:8px">Ouvrir les mails</button>
       </div>`;
 
     if (tab === "hist") html = `
@@ -518,6 +632,7 @@
 
     // ---- interactions
     const re = () => { render(); openEnvoi(id, state.tab); };
+    if ($("#open-mails")) $("#open-mails").onclick = () => { mstate.open = true; renderMail(); };
     $$("#d-body .pen").forEach(b => b.onclick = () => { if (!guard(x)) toast("Changer le client payeur"); });
     $$("#d-body [data-ro]").forEach(b => { if (!b.id) b.onclick = () => toast(b.textContent.trim()); });
     if ($("#unlock-l")) $("#unlock-l").onclick = () => askLock(e);
@@ -571,7 +686,7 @@
     x.hist = [];
     if (x.etat === "reserve" && slotEnd(x) < NOW) { x.etat = "echec"; x.auto = true; x.motif = `Aucun scan après la fin du créneau (${x.slot.split("–")[1]})`; }
   });
-  function demConf(x) { x.demConf = "23/11 16:4" + (x.id % 10); x.hist.push(["Confirmation demandée à " + x.carrier, ME]); }
+  function demConf(x) { x.demConf = "23/11 16:4" + (x.id % 10); x.hist.push(["Confirmation demandée à " + x.carrier, ME]); const se = state.enl, sk = state.dkind; state.enl = x.id; state.dkind = "enl"; autoMail(ctx(), "conf"); state.enl = se; state.dkind = sk; }
 
   const EK = [
     { id: "today", l: "Aujourd'hui", h: "à ramasser", cls: "blue", f: x => sameDay(x.date, NOW) && x.etat !== "ramasse" },
@@ -660,13 +775,14 @@
       <div class="r1"><span class="cn">${esc(x.client)}${x.auto ? ` <span class="badge auto" title="Passé automatiquement en Non ramassé">auto</span>` : ""}</span><span class="slot">${sameDay(x.date, NOW) ? "Auj." : fmtD(x.date)} · ${x.slot}</span></div>
       <div class="addr">${esc(x.lieu.nom)} — ${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div>
       ${x.motif ? `<div class="al crit" style="margin-top:6px"><i></i><span>${esc(x.motif)}</span></div>` : late && x.etat !== "echec" ? `<div class="al crit" style="margin-top:6px"><i></i><span>Date dépassée, pas de scan</span></div>` : ""}
-      <div class="r3"><span class="carrier" style="font-weight:500">${cb(x.carrier)} ${x.colis} colis</span>${x.etat === "a_reserver" ? "" : badge(x)}</div>
+      <div class="r3"><span class="carrier" style="font-weight:500">${cb(x.carrier)} ${x.colis} colis${unreadOf(ctxL(x)) ? ` <span class="mbadge new">✉ ${unreadOf(ctxL(x))}</span>` : ""}</span>${x.etat === "a_reserver" ? "" : badge(x)}</div>
       <div class="act">${acts.map(a => `<button class="btn sm" data-a="${esc(a)}">${esc(a)}</button>`).join("")}</div>
     </div>`;
   }
   function openEnl(id, tab = "apercu") {
     const x = ENLEVEMENTS[id];
-    state.dkind = "enl"; $("#d-nav").hidden = true; $("#d-sum").hidden = true;
+    if (state.enl !== id) { mstate.sel = null; mstate.compose = null; mstate.linking = false; }
+    state.dkind = "enl"; state.enl = id; state.etab = tab; $("#d-nav").hidden = true; $("#d-sum").hidden = true;
     const order = ["a_reserver", "reserve", "ramasse"];
     const n = x.etat === "echec" ? 2 : order.indexOf(x.etat) + 1;
     $("#d-ref").innerHTML = `Enlèvement ${x.conf ? `<span class="mono" style="font-size:15px">${x.conf}</span>` : ""} ${badge(x)}`;
@@ -675,6 +791,7 @@
       : x.etat === "echec" ? [["Prévenir le client"], ["Ouvrir une réclamation"]]
         : x.etat === "ramasse" ? [["Voir les envois liés"], ["Imprimer le récapitulatif"]]
           : [x.estime ? ["Saisir la confirmation", "primary"] : ["Relancer le transporteur"], ...(x.estime && !x.demConf ? [["Demander la confirmation"]] : []), ["Modifier le créneau"], ["Annuler", "danger"]]);
+    $$("#d-actions .btn").forEach(b => { const t = b.textContent; if (/^Relancer|^Prévenir le client/.test(t)) b.onclick = () => { autoMail(ctx(), t.startsWith("Relancer") ? "relance" : "client"); toast("Mail envoyé — rattaché à l'enlèvement"); renderEnl(); openEnl(id, tab); }; });
     $$("#d-actions .btn").forEach(b => { if (b.textContent === "Demander la confirmation") b.onclick = () => { demConf(x); toast("Confirmation demandée à " + x.carrier); renderEnl(); openEnl(id, tab); }; });
     drawerTabs([{ id: "apercu", l: "Aperçu" }, { id: "bords", l: "Bordereaux", n: x.bords.length }, { id: "hist", l: "Historique" }], tab, t => openEnl(id, t));
     const B = $("#d-body");
@@ -692,6 +809,7 @@
       const v = $("#rs-d").value; if (!v) return toast("Choisir une date");
       x.date = new Date(v + "T00:00"); x.slot = $("#rs-s").value; x.etat = "reserve"; x.estime = true; x.demConf = null; x.motif = null; x.auto = false;
       x.hist.push([`Reprogrammé au ${fmtD(x.date)} ${x.slot}${$("#rs-m").checked ? " · client prévenu" : ""}`, ME]);
+      if ($("#rs-m").checked) { const c = ctx(); pushMail(c, `${c.ct} <${c.cmail}>`, `Enlèvement reprogrammé le ${fmtD(x.date)}`, `Bonjour ${c.ct},\n\nL'enlèvement n'a pas pu avoir lieu. Il est reprogrammé le ${fmtD(x.date)}, créneau ${x.slot}. Merci de tenir les colis prêts.\n\nMTI Express — Exploitation`, "Envoyé à la reprogrammation"); }
       toast(`Reprogrammé le ${fmtD(x.date)} · ${x.slot}`); renderEnl(); openEnl(id);
     };
     openDrawer();
