@@ -3,7 +3,7 @@
   --text:#111827; --muted:#6b7280; --faint:#9ca3af;
   --navy:#0f1b33; --navy2:#16233f; --primary:#1d4ed8; --primary-soft:#eaf0ff;
   --crit:#dc2626; --crit-soft:#fef2f2; --warn:#d97706; --warn-soft:#fffbeb; --ok:#16a34a; --ok-soft:#f0fdf4;
-  --chrono:#0ea5e9; --tnt:#f97316; --dhl:#eab308; --fedex:#7c3aed; --dpd:#dc2626; --ups:#78350f; --mti:#10b981; --autre:#9ca3af;
+  --chrono:#0ea5e9; --tnt:#f97316; --dhl:#eab308; --fedex:#7c3aed; --dpd:#dc2626; --gls:#eab308; --geodis:#16a34a; --ups:#78350f; --mti:#10b981; --autre:#9ca3af;
   --r:10px; --font:'DM Sans',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box}
@@ -399,18 +399,18 @@ body.compact .grid .todo .al:nth-child(n+2){display:none}
 @media (max-width:860px){.views{flex-wrap:wrap;gap:8px}.views .right{flex-wrap:wrap;gap:8px;width:100%}#density{display:none}}
 .todo{min-width:145px}
 
-/* Étiquettes transporteur aux couleurs de la marque */
-.cb{display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:24px;padding:0 8px;border-radius:5px;font-weight:800;font-size:12.5px;letter-spacing:.02em;line-height:1;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;vertical-align:middle}
-.cb b{font-weight:800}
-.cb.sm{min-width:0;height:19px;padding:0 6px;font-size:11px;border-radius:4px}
-.cb-tnt{background:#ff6600;color:#fff}
-.cb-ups{background:#351c15;color:#ffb500}
-.cb-dhl{background:#ffcc00;color:#d40511;font-style:italic}
-.cb-chrono{background:#0f4c97;color:#fff;font-weight:700}.cb-chrono b{color:#f9b200;font-weight:700}
-.cb-fedex{background:#4d148c;color:#fff}.cb-fedex b{color:#ff6600}
-.cb-dpd{background:#dc0032;color:#fff;text-transform:lowercase}
-.cb-mti{background:var(--primary);color:#fff}
-.cb-autre{background:#64748b;color:#fff}
+/* Étiquettes transporteur — identiques au TMS (client/src/index.css .cc-*) */
+.cb{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;vertical-align:middle}
+.cb.sm{height:20px;padding:0 7px;font-size:11.5px}
+.cc-chrono{background:#e8f0ff;color:#0055b3;border:1px solid #bed0f7}
+.cc-dhl{background:#fff3e0;color:#c53c00;border:1px solid #ffd080}
+.cc-gls{background:#fff8e1;color:#7b5800;border:1px solid #ffd740}
+.cc-ups{background:#3d2000;color:#ffb300;border:1px solid #7a4a00}
+.cc-tnt{background:#fff3e0;color:#e65100;border:1px solid #ffb74d}
+.cc-geodis{background:#e8f5e9;color:#1b5e20;border:1px solid #81c784}
+.cc-fedex{background:#f3e8ff;color:#4d148c;border:1px solid #d8b4fe}
+.cc-mti{background:#e0f2fe;color:#0c4a6e;border:1px solid #7dd3fc}
+.cc-autre{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .grid td.tc{white-space:nowrap}
 .grid td.tc .presta{margin-top:4px;font-size:11.5px}
 .chip.on .cb{box-shadow:0 0 0 2px #fff}

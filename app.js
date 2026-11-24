@@ -5,8 +5,8 @@
   const fmtD = d => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
   const fmtDT = d => fmtD(d) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const cColor = c => CARRIERS[c] || "var(--autre)";
-  const CB = { "TNT": ["tnt", "TNT"], "UPS": ["ups", "UPS"], "DHL Express": ["dhl", "DHL"], "Chronopost": ["chrono", "Chrono<b>post</b>"], "FedEx": ["fedex", "Fed<b>Ex</b>"], "DPD": ["dpd", "dpd"], "MTI Express": ["mti", "MTI"] };
-  const cb = (c, sz) => { const b = CB[c] || ["autre", c]; return `<span class="cb cb-${b[0]} ${sz || ""}" title="${c}">${b[1]}</span>`; };
+  const CB = { "TNT": "tnt", "UPS": "ups", "DHL Express": "dhl", "Chronopost": "chrono", "FedEx": "fedex", "GLS France": "gls", "GEODIS": "geodis", "MTI Express": "mti" };
+  const cb = (c, sz) => `<span class="cb cc-${CB[c] || "autre"} ${sz || ""}">${esc(c)}</span>`;
   const ago = h => h < 1 ? "à l'instant" : h < 48 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
   const toast = m => { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, 2200); };
 

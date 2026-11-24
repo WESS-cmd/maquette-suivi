@@ -3,7 +3,7 @@ window.NOW = new Date(2026, 10, 23, 16, 40);
 
 window.CARRIERS = {
   "Chronopost": "var(--chrono)", "TNT": "var(--tnt)", "DHL Express": "var(--dhl)", "FedEx": "var(--fedex)",
-  "DPD": "var(--dpd)", "UPS": "var(--ups)", "MTI Express": "var(--mti)"
+  "GLS France": "var(--gls)", "GEODIS": "var(--geodis)", "UPS": "var(--ups)", "MTI Express": "var(--mti)"
 };
 
 (function () {
@@ -40,9 +40,9 @@ window.CARRIERS = {
   const prestas = {
     "TNT": ["13:00 Express", "Express (journée)", "Express National"], "UPS": ["F éco", "Express Saver", "F 13 h"],
     "Chronopost": ["Chrono 13", "Chrono 18", "Chrono Relais"], "DHL Express": ["Express Worldwide"],
-    "FedEx": ["International Priority"], "DPD": ["Predict"], "MTI Express": ["Course express", "Coursier 2 h"]
+    "FedEx": ["International Priority"], "GLS France": ["Business Parcel", "Express Parcel"], "GEODIS": ["Messagerie", "Express"], "MTI Express": ["Course express", "Coursier 2 h"]
   };
-  const carrierW = ["TNT", "TNT", "TNT", "UPS", "UPS", "Chronopost", "Chronopost", "DHL Express", "FedEx", "DPD", "MTI Express"];
+  const carrierW = ["TNT", "TNT", "TNT", "UPS", "UPS", "Chronopost", "Chronopost", "DHL Express", "FedEx", "GLS France", "GEODIS", "MTI Express"];
 
   // statut: attente | transit | livraison | livre | relais | anomalie
   const out = [];
@@ -89,7 +89,7 @@ window.CARRIERS = {
     if (delivered && rnd() > .7) al.push({ lv: "info", t: "Preuve de livraison à récupérer", a: "Demander la preuve" });
     if (colis > 1 && delivered && rnd() > .5) al.push({ lv: "warn", t: `${colis - 1}/${colis} colis livrés`, a: "Voir les colis" });
 
-    const prefix = { "TNT": "7" + Math.floor(rnd() * 9) + "17830000", "UPS": "1Z" + pick(["R5J1", "V198", "WV00"]) + "59", "Chronopost": "XN5", "DHL Express": "15", "FedEx": "77", "DPD": "250", "MTI Express": "MTI" }[carrier];
+    const prefix = { "TNT": "7" + Math.floor(rnd() * 9) + "17830000", "UPS": "1Z" + pick(["R5J1", "V198", "WV00"]) + "59", "Chronopost": "XN5", "DHL Express": "15", "FedEx": "77", "GLS France": "250", "GEODIS": "GE", "MTI Express": "MTI" }[carrier];
     const bord = prefix + String(Math.floor(rnd() * 1e8)).padStart(8, "0") + (carrier === "Chronopost" ? "FR" : "");
     const ref = `MTI-2610${pad(10 + (i % 20))}-${carrier === "UPS" ? "P" + (6000 + i * 37) : 100 + i * 7}`;
     const prio = al.some(a => a.lv === "crit") ? 2 : al.some(a => a.lv === "warn") ? 1 : 0;
@@ -133,7 +133,7 @@ window.CARRIERS = {
     const dt = new Date(NOW); dt.setDate(NOW.getDate() + off); dt.setHours(0, 0, 0, 0);
     if (dt.getDay() === 0) dt.setDate(dt.getDate() + 1);
     if (dt.getDay() === 6) dt.setDate(dt.getDate() + 2);
-    const carrier = pick(["TNT", "TNT", "TNT", "UPS", "UPS", "DHL Express", "Chronopost", "FedEx"]);
+    const carrier = pick(["TNT", "TNT", "TNT", "UPS", "UPS", "DHL Express", "Chronopost", "FedEx", "GLS France", "GEODIS"]);
     let etat;
     const r = rnd();
     const past = dt < new Date(2026, 10, 23);
