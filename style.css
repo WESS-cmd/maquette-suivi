@@ -517,3 +517,4 @@ body.mail-open .mail-tab{right:calc(min(620px,100vw) + 420px)}
 .trajet .pt .nm{flex:0 1 auto;min-width:0}
 .trajet .pt .vl{flex:1 1 0;min-width:0;max-width:none}
 .trajet .pt .tag.ext{flex-shrink:0}
+.rstar{color:#b8c0cc}.rstar:not(.on):hover{transform:scale(1.15)}

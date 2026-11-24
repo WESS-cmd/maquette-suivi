@@ -39,7 +39,7 @@
     saved: [{ n: "Mes anomalies TNT", s: { q: "", carriers: ["TNT"], view: "todo", kpi: "anom", sort: "urgence" } }, { n: "À facturer cette semaine", s: { q: "", carriers: [], view: "fact", kpi: null, sort: "date" } }, { n: "UPS sans nouvelles", s: { q: "", carriers: ["UPS"], view: "todo", kpi: "noscan", sort: "scan" } }], savingView: false };
 
   const KPIS = [
-    { id: "prio", l: "À traiter en priorité", h: "alerte rouge", cls: "crit", f: e => e.prio === 2 && !extra(e).lock },
+    { id: "prio", l: "À traiter en priorité", h: "alerte rouge", cls: "crit", f: e => (e.prio === 2 && !extra(e).lock) || reouv(e) },
     { id: "noscan", l: "Aucun scan > 48 h", h: "hors livrés", cls: "warn", f: e => e.statut !== "livre" && e.lastScanH > 48 },
     { id: "anom", l: "Anomalies", h: "absent, adresse, casse…", cls: "crit", f: e => e.statut === "anomalie" },
     { id: "relais", l: "En point relais", h: "à prévenir", cls: "warn", f: e => e.statut === "relais" },
@@ -47,11 +47,11 @@
     { id: "ext", l: "Enlèvements extérieurs", h: "ouvrir la page dédiée →", cls: "", f: null, go: "enlev" }
   ];
   const VIEWS = [
-    { id: "todo", l: "À traiter", f: e => e.prio > 0 && !extra(e).lock },
+    { id: "todo", l: "À traiter", f: e => (e.prio > 0 && !extra(e).lock) || reouv(e) },
     { id: "cours", l: "En cours", f: e => e.statut !== "livre" },
     { id: "fact", l: "À facturer", f: e => aFacturer(e) },
     { id: "livre", l: "Livrés", f: e => e.statut === "livre" && !extra(e).lock },
-    { id: "clos", l: "Clôturés ★", f: e => !!extra(e).lock },
+    { id: "clos", l: "Traités ★", f: e => !!extra(e).lock },
     { id: "all", l: "Tous", f: () => true }
   ];
 
@@ -122,11 +122,11 @@
     const since = e.statut === "livre" ? "" : e.lastScanH > 48 ? "crit" : e.lastScanH > 24 ? "warn" : "";
     const x = extra(e);
     const als = x.lock ? [] : e.al.filter(a => !(a.a === "Demander la preuve" && x.preuve)).concat(aFacturer(e) ? [{ lv: "warn", t: `À facturer : ${eur(e.ht + optTotal(x))} HT`, a: "Valider la facturation" }] : []);
-    const todo = x.lock ? `<span class="muted">★ Clôturé — verrouillé</span>` : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
+    const todo = reouv(e) ? `<div class="al crit"><i></i><span>Nouveau mail après traitement — à regarder</span></div><span class="muted" style="font-size:12px">★ Traité par ${esc(x.lock.by)}</span>` : x.lock ? `<span class="muted">★ Traité par ${esc(x.lock.by)} — on n'y revient plus</span>` : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
       + `<div class="qa">${als.slice(0, 2).map(a => `<button data-a="${esc(a.a)}">${esc(a.a)}</button>`).join("")}</div>`
       : `<span class="muted">Rien à faire</span>`;
-    const pr = x.lock ? "ok" : ["ok", "warn", "crit"][e.prio];
-    const stc = e.statut === "livre" || x.lock ? `<button class="rstar ${x.lock ? "on" : ""}" data-star="1" title="${x.lock ? "Clôturé par " + esc(x.lock.by) + " — cliquer pour déverrouiller" : "Clôturer et verrouiller"}" aria-label="Clôturer">${x.lock ? "★" : "☆"}</button>` : "";
+    const pr = reouv(e) ? "crit" : x.lock ? "ok" : ["ok", "warn", "crit"][e.prio];
+    const stc = `<button class="rstar ${x.lock ? "on" : ""}" data-star="1" title="${x.lock ? "Traité par " + esc(x.lock.by) + " le " + x.lock.d + " — cliquer pour rouvrir" : "Suivi terminé ? Cliquer pour marquer comme traité"}" aria-label="${x.lock ? "Rouvrir" : "Marquer comme traité"}">${x.lock ? "★" : "☆"}</button>`;
     return `<tr class="u-${pr} ${x.lock ? "locked" : ""} ${state.sel.has(e.id) ? "sel" : ""} ${state.open === e.id ? "open" : ""}" data-id="${e.id}">
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
@@ -212,18 +212,18 @@
     const k = b.dataset.b, sel = [...state.sel].map(i => ENVOIS[i]);
     const free = sel.filter(e => !extra(e).lock), skipped = sel.length - free.length;
     let n = 0, msg;
-    if (k === "lock") { free.filter(e => e.statut === "livre").forEach(e => { doLock(e); n++; }); msg = `${n} envoi(s) clôturé(s) ★${sel.length - n ? ` · ${sel.length - n} ignoré(s) (non livrés ou déjà clôturés)` : ""}`; }
+    if (k === "lock") { free.forEach(e => { doLock(e); n++; }); msg = `${n} envoi(s) traité(s) ★${sel.length - n ? ` · ${sel.length - n} déjà traité(s)` : ""}`; }
     else if (k === "valider") { free.filter(aFacturer).forEach(e => { const x = extra(e); x.factValide = true; logx(x, `Facturation validée (${eur(e.ht + optTotal(x))} HT)`); n++; }); msg = `${n} facturation(s) validée(s)`; }
     else if (k === "nofact") { free.forEach(e => { const x = extra(e); x.noFact = true; logx(x, "Marqué « ne pas facturer »"); n++; }); msg = `${n} envoi(s) marqué(s) « ne pas facturer »`; }
     else { free.forEach(e => logx(extra(e), b.textContent.trim())); msg = `${b.textContent.trim()} — ${free.length} envoi(s)`; }
-    if (skipped && k !== "lock") msg += ` · ${skipped} clôturé(s) ignoré(s)`;
+    if (skipped && k !== "lock") msg += ` · ${skipped} traité(s) ★ ignoré(s)`;
     toast(msg); render();
   });
   $$("#density button").forEach(b => b.onclick = () => { document.body.classList.toggle("compact", b.dataset.d === "compact"); $$("#density button").forEach(x => x.classList.toggle("on", x === b)); });
 
   // ================= PANNEAU DE DÉTAIL =================
   function openDrawer() { $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false"); $("#scrim").hidden = false; renderMail(); }
-  function closeDrawer() { state.ask = null; state.editPrix = null; $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); state.enl = null; mstate.open = false; mstate.compose = null; $("#mail-tab").hidden = true; $("#mailp").classList.remove("on"); document.body.classList.remove("mail-open"); $("#scrim").hidden = true; if (state.open !== null) { state.open = null; $$("#rows tr.open").forEach(t => t.classList.remove("open")); } }
+  function closeDrawer() { state.ask = null; state.editPrix = null; $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); state.enl = null; mstate.open = false; mstate.compose = null; $("#mail-tab").hidden = true; $("#mailp").classList.remove("on"); document.body.classList.remove("mail-open"); $("#scrim").hidden = true; if (state.open !== null) { state.open = null; $$("#rows tr.open").forEach(t => t.classList.remove("open")); } render(); renderEnl(); }
   $("#d-close").onclick = closeDrawer; $("#scrim").onclick = closeDrawer;
   $("#mail-tab").onclick = () => { mstate.open = !mstate.open; renderMail(); if (!mstate.open) refreshFiche(); };
   $("#d-prev").onclick = () => navEnvoi(-1); $("#d-next").onclick = () => navEnvoi(1);
@@ -308,17 +308,21 @@
       x.factValide = true; x.ecartOk = true; x.preuve = true;
       x.log.push({ d: "20/11 10:58", w: "Léa FIXMAN", t: "Facturation validée" });
       x.lock = { by: "Léa FIXMAN", d: "20/11 11:02" };
-      x.log.push({ d: "20/11 11:02", w: "Léa FIXMAN", t: "Envoi clôturé ★ (verrouillé)" });
+      x.log.push({ d: "20/11 11:02", w: "Léa FIXMAN", t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
+    } else if (!livre && e.statut !== "attente" && e.id % 9 === 4) {
+      x.lock = { by: "Léa FIXMAN", d: "22/11 17:10" }; x.demoReouv = e.id % 18 === 4;
+      x.log.push({ d: "22/11 17:10", w: "Léa FIXMAN", t: "Marqué comme traité ★ — suivi terminé, envoi verrouillé" });
     } else if (x.factValide) x.log.push({ d: "21/11 09:30", w: "Compta", t: "Facturation validée" });
     return x;
   }
+  const reouv = e => { const x = extra(e); return !!x.lock && unreadOf(ctxE(e)) > 0; }; // traité ★ mais un nouveau mail est arrivé
   const aFacturer = e => { const x = extra(e); return e.statut === "livre" && !x.factValide && !x.noFact && !x.lock; };
   const dotsOf = e => { const x = extra(e); return { colis: !!x.mesure && !x.ecartOk && !x.lock, fact: aFacturer(e), docs: e.statut === "livre" && !x.preuve }; };
-  const guard = x => { if (x.lock) { toast("Envoi clôturé ★ — déverrouillez-le pour le modifier"); return true; } return false; };
+  const guard = x => { if (x.lock) { toast("Envoi traité ★ — rouvrez-le pour le modifier"); return true; } return false; };
 
   function summary(e) {
     const x = extra(e), tot = e.ht + optTotal(x);
-    if (x.lock) return { cls: "lock", txt: `<b>★ Clôturé</b> par ${esc(x.lock.by)} le ${x.lock.d} · facturé ${eur(tot)} HT · consultation seule`, acts: [] };
+    if (x.lock) return { cls: reouv(e) ? "crit" : "lock", txt: `<b>★ Traité</b> par ${esc(x.lock.by)} le ${x.lock.d}${e.statut === "livre" ? ` · facturé ${eur(tot)} HT` : ` · ${ST[e.statut].l.toLowerCase()}`} · consultation seule${reouv(e) ? ` · <b class="c-crit">nouveau mail reçu depuis</b>` : ""}`, acts: reouv(e) ? [["Lire le mail", "mails", "primary"], ["Rouvrir l'envoi", "lock"]] : [] };
     if (e.statut === "livre") {
       const lv = events(e)[0];
       const p = [`<b>Livré le ${fmtDT(lv.d)}</b>${x.signataire ? " à " + esc(x.signataire.split(" - ")[0]) : ""}`,
@@ -328,7 +332,7 @@
       const acts = [];
       if (!x.preuve) acts.push(["Demander la preuve", "preuve"]);
       if (!x.factValide && !x.noFact) acts.push(["Valider la facturation", "valider"]);
-      acts.push(["★ Clôturer l'envoi", "lock", "primary"]);
+      acts.push(["★ Marquer comme traité", "lock", "primary"]);
       return { cls: !x.preuve || aFacturer(e) ? "warn" : "ok", txt: p.join(" · "), acts };
     }
     if (e.statut === "anomalie") { const a = e.al.find(a => a.a === "Ouvrir une enquête"); return { cls: "crit", txt: `<b>Anomalie</b> : ${esc(a ? a.t : "à analyser")} · dernier scan ${ago(e.lastScanH)}`, acts: [["Ouvrir une enquête", "enquete", "primary"], ["Prévenir le client", "client"]] }; }
@@ -340,6 +344,7 @@
   function doAct(e, k, reopen = true) {
     const x = extra(e);
     if (k === "lock") return askLock(e);
+    if (k === "mails") { mstate.open = true; return openEnvoi(e.id, state.tab); }
     if (guard(x)) return;
     if (k === "valider") { x.factValide = true; logx(x, `Facturation validée (${eur(e.ht + optTotal(x))} HT)`); toast("Facturation validée"); }
     else {
@@ -351,16 +356,16 @@
   }
   function askLock(e) {
     const x = extra(e);
-    if (!x.lock && e.statut !== "livre") return toast("Seul un envoi livré peut être clôturé");
     state.ask = { id: e.id, kind: x.lock ? "unlock" : "lock" };
     openEnvoi(e.id, state.open === e.id ? state.tab : "apercu");
   }
   function doLock(e) {
     const x = extra(e);
-    if (!x.factValide && !x.noFact) { x.factValide = true; logx(x, `Facturation validée (${eur(e.ht + optTotal(x))} HT)`); }
-    x.lock = { by: ME, d: nowS() }; logx(x, "Envoi clôturé ★ (verrouillé)");
+    if (e.statut === "livre" && !x.factValide && !x.noFact) { x.factValide = true; logx(x, `Facturation validée (${eur(e.ht + optTotal(x))} HT)`); }
+    x.lock = { by: ME, d: nowS() }; logx(x, "Marqué comme traité ★ — suivi terminé, envoi verrouillé");
+    mailsOf(ctxE(e)).forEach(m => m.unread = false); // traité = mails lus
   }
-  function doUnlock(e) { const x = extra(e); x.lock = null; logx(x, "Envoi déverrouillé — de nouveau modifiable"); }
+  function doUnlock(e) { const x = extra(e); x.lock = null; logx(x, "Envoi rouvert — de nouveau à suivre et modifiable"); }
   function navEnvoi(d) {
     const L = list(), i = L.findIndex(y => y.id === state.open);
     const n = L[i + d]; if (n) openEnvoi(n.id, state.tab); else toast(d > 0 ? "Dernier envoi de la liste" : "Premier envoi de la liste");
@@ -394,7 +399,8 @@
       if (x.dem.canal === "email") M.push({ dir: "in", from: cli, to: MBOX, d: fmtDT(x.dem.recue), subj: `Demande d'expédition ${e.dep.ville} → ${e.liv.ville}`, body: `Bonjour,\n\nMerci d'organiser l'expédition de ${e.colis} colis (${e.poids}) depuis ${e.dep.nom}, ${e.dep.ville}, vers ${e.liv.nom}, ${e.liv.ville}.\n\nCordialement,\n${c.ct}`, how: "Demande d'origine — rattachée à la création de l'envoi" });
       M.push({ dir: "out", from: MBOX, to: cli, d: fmtDT(new Date(e.ramasse.getTime() - 18 * 36e5)), subj: `${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nVotre envoi est enregistré sous la référence ${e.ref}. Vous trouverez le bordereau ${c.carrier} n° ${e.bord} en pièce jointe, à coller sur le colis.\n\nL'équipe MTI Express`, pj: "Bordereau_" + e.bord + ".pdf", how: "Envoyé automatiquement par le TMS" });
       if (e.statut === "anomalie") M.push({ dir: "in", from: car, to: MBOX, d: fmtDT(new Date(NOW.getTime() - e.lastScanH * 36e5)), subj: `${tagS(c)} Avis d'anomalie sur votre envoi`, body: `Bonjour,\n\nUne anomalie a été signalée sur l'envoi ${e.bord} : ${e.statLbl || "adresse incomplète / destinataire absent"}. Merci de nous indiquer la marche à suivre.\n\n${c.carrier} — Service client`, unread: true, how: "Rattaché automatiquement : n° de bordereau dans l'objet" });
-      if (e.statut !== "livre" && e.id % 6 === 2) M.push({ dir: "in", from: cli, to: MBOX, d: "23/11 09:" + String(10 + e.id % 40).padStart(2, "0"), subj: `RE: ${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nOù en est ce colis ? Le destinataire ne l'a toujours pas reçu.\n\nMerci,\n${c.ct}`, unread: true, how: "Rattaché automatiquement : réponse au fil" });
+      if (x.demoReouv) M.push({ dir: "in", from: cli, to: MBOX, d: "23/11 15:48", subj: `RE: ${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nLe destinataire nous dit qu'il manque un colis à la livraison. Pouvez-vous vérifier ?\n\nMerci,\n${c.ct}`, unread: true, how: "Rattaché automatiquement : réponse au fil — arrivé après le traitement ★" });
+      if (e.statut !== "livre" && e.id % 6 === 2 && !x.lock) M.push({ dir: "in", from: cli, to: MBOX, d: "23/11 09:" + String(10 + e.id % 40).padStart(2, "0"), subj: `RE: ${tagS(c)} Votre bordereau ${c.carrier}`, body: `Bonjour,\n\nOù en est ce colis ? Le destinataire ne l'a toujours pas reçu.\n\nMerci,\n${c.ct}`, unread: true, how: "Rattaché automatiquement : réponse au fil" });
     } else {
       const o = c.o;
       if (o.demandePar === "Mail") M.push({ dir: "in", from: cli, to: MBOX, d: fmtD(new Date(o.date.getTime() - 2 * 864e5)) + " 10:12", subj: `Demande d'enlèvement — ${o.lieu.ville}`, body: `Bonjour,\n\nPouvez-vous programmer un enlèvement de ${o.colis} colis (${o.poids}) chez ${o.lieu.nom}, ${o.lieu.adr}, ${o.lieu.cp} ${o.lieu.ville} ?\nCréneau souhaité : ${o.slot}.\n\n${o.lieu.contact} — ${o.lieu.tel}`, how: "Demande d'origine — rattachée à la création de l'enlèvement" });
@@ -488,8 +494,8 @@
     $("#d-nav").hidden = false;
     $("#d-pos").textContent = idx >= 0 ? `${idx + 1} / ${L.length}` : "";
     $("#d-prev").disabled = idx <= 0; $("#d-next").disabled = idx < 0 || idx >= L.length - 1;
-    const starTitle = lk ? "Envoi clôturé — cliquer pour déverrouiller" : e.statut === "livre" ? "Clôturer et verrouiller l'envoi" : "Disponible une fois l'envoi livré";
-    $("#d-ref").innerHTML = `<button class="star ${lk ? "on" : ""} ${e.statut !== "livre" && !lk ? "dis" : ""}" id="d-star" title="${starTitle}" aria-label="${starTitle}">${lk ? "★" : "☆"}</button><span>Détail transporteur — ${esc(e.ref)}</span><span class="st ${s.c}">${s.l}</span>`;
+    const starTitle = lk ? "Envoi traité — cliquer pour le rouvrir" : "Suivi terminé ? Cliquer pour marquer comme traité";
+    $("#d-ref").innerHTML = `<button class="star ${lk ? "on" : ""}" id="d-star" title="${starTitle}" aria-label="${starTitle}">${lk ? "★" : "☆"}</button><span>Détail transporteur — ${esc(e.ref)}</span><span class="st ${s.c}">${s.l}</span>`;
     $("#d-sub").innerHTML = `<span class="mono">${esc(e.bord)}</span> · ${esc(e.client)} · ${cb(e.carrier, "sm")} ${esc(e.presta)}`;
     $("#d-actions").innerHTML = `<button class="btn sm" data-h="refresh">↻ Rafraîchir le suivi</button><button class="btn sm" data-h="preuve">Demander la preuve</button><button class="btn sm ${e.prio === 2 ? "primary" : "outline-p"}" data-h="enquete">Ouvrir une enquête</button>
       <select class="btn sm sel-btn"><option>Déplacer dans dossier en cours</option><option>Non lu</option><option>En cours</option><option>Terminé</option></select><button class="btn sm" data-h="Envoi masqué de la liste">Masquer</button>`;
@@ -499,17 +505,18 @@
 
     // résumé + confirmation
     const S = summary(e);
+    if (!x.lock && !S.acts.some(a => a[1] === "lock")) S.acts.push(["★ Suivi terminé", "lock"]);
     let sum = `<div class="sum ${S.cls}"><div class="sum-t">${S.txt}</div>${S.acts.length ? `<div class="sum-a">${S.acts.map(a => `<button class="btn sm ${a[2] || ""}" data-k="${a[1]}">${a[0]}</button>`).join("")}</div>` : ""}</div>`;
     if (state.ask && state.ask.id === id) {
-      const need = !x.factValide && !x.noFact;
+      const need = e.statut === "livre" && !x.factValide && !x.noFact;
       sum += state.ask.kind === "lock"
-        ? `<div class="confirm"><b>★ Clôturer cet envoi ?</b> Il sera verrouillé : plus personne ne pourra le modifier (statut, prix, options, commentaires).${need ? ` La facturation (${eur(e.ht + optTotal(x))} HT) sera validée en même temps.` : ""}<div class="acts"><button class="btn sm primary" id="cf-yes">★ Clôturer et verrouiller</button><button class="btn sm" id="cf-no">Annuler</button></div></div>`
-        : `<div class="confirm"><b>Déverrouiller cet envoi ?</b> Il redeviendra modifiable. Ce sera noté dans l'historique.<div class="acts"><button class="btn sm primary" id="cf-yes">Déverrouiller</button><button class="btn sm" id="cf-no">Annuler</button></div></div>`;
+        ? `<div class="confirm"><b>★ Le suivi de cet envoi est terminé ?</b> Il sort de « À traiter » et passe dans « Traités ★ » : on n'a plus besoin d'y revenir. Il est verrouillé, plus personne ne peut le modifier.${need ? ` La facturation (${eur(e.ht + optTotal(x))} HT) sera validée en même temps.` : ""}${e.statut !== "livre" ? ` Il reviendra tout seul dans « À traiter » si un nouveau mail arrive.` : ""}<div class="acts"><button class="btn sm primary" id="cf-yes">★ Oui, marquer comme traité</button><button class="btn sm" id="cf-no">Annuler</button></div></div>`
+        : `<div class="confirm"><b>Rouvrir cet envoi ?</b> Il revient dans le suivi et redevient modifiable. Ce sera noté dans l'historique.<div class="acts"><button class="btn sm primary" id="cf-yes">Rouvrir</button><button class="btn sm" id="cf-no">Annuler</button></div></div>`;
     }
     $("#d-sum").innerHTML = sum; $("#d-sum").hidden = false;
     $$("#d-sum [data-k]").forEach(b => b.onclick = () => doAct(e, b.dataset.k));
     if ($("#cf-yes")) {
-      $("#cf-yes").onclick = () => { const k = state.ask.kind; state.ask = null; k === "lock" ? (doLock(e), toast("Envoi clôturé ★ — verrouillé")) : (doUnlock(e), toast("Envoi déverrouillé")); render(); openEnvoi(id, state.tab); };
+      $("#cf-yes").onclick = () => { const k = state.ask.kind; state.ask = null; k === "lock" ? (doLock(e), toast("★ Envoi traité — il sort de « À traiter »")) : (doUnlock(e), toast("Envoi rouvert")); render(); openEnvoi(id, state.tab); };
       $("#cf-no").onclick = () => { state.ask = null; openEnvoi(id, state.tab); };
     }
 
@@ -522,7 +529,7 @@
       { id: "hist", l: "Historique", n: x.log.length }
     ], tab, t => openEnvoi(id, t));
     const B = $("#d-body");
-    const lockBar = lk ? `<div class="lock-bar"><span class="lk-i">★</span><div><b>Envoi clôturé</b> par ${esc(x.lock.by)} le ${x.lock.d} — consultation seule, rien n'est modifiable.</div><button class="link" id="unlock-l" data-ro>Déverrouiller</button></div>` : "";
+    const lockBar = lk ? `<div class="lock-bar"><span class="lk-i">★</span><div><b>Envoi traité</b> par ${esc(x.lock.by)} le ${x.lock.d} — suivi terminé, consultation seule.</div><button class="link" id="unlock-l" data-ro>Rouvrir</button></div>` : "";
     const stepper = `<div class="stepper">${STEPS.map((st, i) => `<div class="step ${i < s.n ? "d" : ""} ${i === s.n - 1 ? "cur" : ""} ${e.statut === "anomalie" && i === s.n - 1 ? "x" : ""}"><b></b>${st}</div>`).join("")}</div>`;
     const fmtAdr = (nom, ct, adr, cp, ville, pays) => [nom, ct, adr, `${cp} ${ville}`, pays].filter(Boolean).map(esc).join(" · ");
     const priseD = e.statut === "attente" ? new Date(e.ramasse.getTime() + 864e5) : e.ramasse;
@@ -624,7 +631,7 @@
 
     if (tab === "hist") html = `
       <div class="sec">${H("🕘", "Historique des modifications", x.log.length)}
-        <div class="muted" style="font-size:12.5px;margin-bottom:8px">Qui a changé quoi, et quand : statut, prix, options, facturation, clôture.</div>
+        <div class="muted" style="font-size:12.5px;margin-bottom:8px">Qui a changé quoi, et quand : statut, prix, options, facturation, traitement ★.</div>
         <ul class="tl">${x.log.slice().reverse().map((l, i) => `<li class="${i === 0 ? "first" : ""}"><span class="t">${l.d}</span><span class="b"></span><span>${esc(l.t)}<div class="loc">${esc(l.w)}</div></span></li>`).join("")}</ul>
       </div>`;
 
