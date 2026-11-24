@@ -102,8 +102,9 @@
   function renderChips() {
     const base = ENVOIS.filter(baseFilter);
     const cs = Object.keys(CARRIERS).filter(c => ENVOIS.some(e => e.carrier === c));
-    $("#carrier-chips").innerHTML = cs.map(c => `<button class="chip ${state.carriers.has(c) ? "on" : ""}" data-c="${c}">${cb(c, "sm")}<span class="n">${base.filter(e => e.carrier === c).length}</span></button>`).join("");
-    $$("#carrier-chips .chip").forEach(b => b.onclick = () => { const c = b.dataset.c; state.carriers.has(c) ? state.carriers.delete(c) : state.carriers.add(c); render(); });
+    $("#carrier-chips").innerHTML = `<button class="ctog all ${state.carriers.size ? "" : "on"}" data-c="">Tous</button>` + cs.map(c => `<button class="ctog ${state.carriers.has(c) ? "on" : ""}" data-c="${c}" aria-pressed="${state.carriers.has(c)}">${cb(c)}<span class="n">${base.filter(e => e.carrier === c).length}</span></button>`).join("");
+    $("#carrier-chips").classList.toggle("has-sel", state.carriers.size > 0);
+    $$("#carrier-chips .ctog").forEach(b => b.onclick = () => { const c = b.dataset.c; if (!c) state.carriers.clear(); else state.carriers.has(c) ? state.carriers.delete(c) : state.carriers.add(c); render(); });
   }
   function renderViews() {
     const base = ENVOIS.filter(baseFilter).filter(e => !state.carriers.size || state.carriers.has(e.carrier));
@@ -168,6 +169,7 @@
   function moreCount() {
     const n = ["#f-client", "#f-dossier", "#f-contenu", "#f-du", "#f-au"].filter(s => $(s).value).length + ["#f-ext", "#f-payeur", "#f-annule"].filter(s => $(s).checked).length;
     $("#mf-count").hidden = !n; $("#mf-count").textContent = n;
+    $("#reset").hidden = !(n || state.q || state.carriers.size || state.kpi);
   }
   function renderRelance() {
     const base = ENVOIS.filter(baseFilter).filter(e => e.statut !== "livre" && e.lastScanH > 48);
@@ -197,7 +199,7 @@
   [...new Set(ENVOIS.map(e => e.client))].sort().forEach(c => $("#f-client").insertAdjacentHTML("beforeend", `<option>${esc(c)}</option>`));
   $("#q").addEventListener("input", e => { state.q = e.target.value; render(); });
   $("#gsearch").addEventListener("input", e => { go("suivi"); $("#q").value = e.target.value; state.q = e.target.value; state.view = "all"; state.kpi = null; render(); });
-  $("#more-filters").onclick = () => $("#more").hidden = !$("#more").hidden;
+  $("#more-filters").onclick = () => { $("#more").hidden = !$("#more").hidden; $("#more-filters").classList.toggle("on", !$("#more").hidden); };
   $$("#more select, #more input").forEach(i => i.addEventListener("change", render));
   const reset = () => { $$("#more select, #more input[type=date]").forEach(i => i.value = ""); $$("#more input[type=checkbox]").forEach(i => i.checked = false); state.q = ""; $("#q").value = ""; state.carriers.clear(); state.kpi = null; render(); };
   $("#reset").onclick = reset; $("#empty-reset").onclick = reset;
@@ -601,8 +603,9 @@
     $("#nav-enlev-nb").textContent = ENLEVEMENTS.filter(x => x.etat !== "ramasse").length;
 
     const cs = [...new Set(ENLEVEMENTS.map(x => x.carrier))];
-    $("#carrier-chips-e").innerHTML = cs.map(c => `<button class="chip ${est.carriers.has(c) ? "on" : ""}" data-c="${c}">${cb(c, "sm")}<span class="n">${ENLEVEMENTS.filter(x => x.carrier === c).length}</span></button>`).join("");
-    $$("#carrier-chips-e .chip").forEach(b => b.onclick = () => { const c = b.dataset.c; est.carriers.has(c) ? est.carriers.delete(c) : est.carriers.add(c); renderEnl(); });
+    $("#carrier-chips-e").innerHTML = `<button class="ctog all ${est.carriers.size ? "" : "on"}" data-c="">Tous</button>` + cs.map(c => `<button class="ctog ${est.carriers.has(c) ? "on" : ""}" data-c="${c}" aria-pressed="${est.carriers.has(c)}">${cb(c)}<span class="n">${ENLEVEMENTS.filter(x => x.carrier === c).length}</span></button>`).join("");
+    $("#carrier-chips-e").classList.toggle("has-sel", est.carriers.size > 0);
+    $$("#carrier-chips-e .ctog").forEach(b => b.onclick = () => { const c = b.dataset.c; if (!c) est.carriers.clear(); else est.carriers.has(c) ? est.carriers.delete(c) : est.carriers.add(c); renderEnl(); });
 
     // jours
     const days = [...new Set(ENLEVEMENTS.map(x => x.date.toDateString()))].map(s => new Date(s)).sort((a, b) => a - b);

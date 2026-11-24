@@ -14,14 +14,8 @@
   <aside class="side" id="side">
     <div class="brand"><span class="logo">MTI<small>EXPRESS</small></span><span class="bo">BackOffice</span></div>
     <div class="side-sec">Opérations</div>
-    <a class="nav" data-go="none">Dépôt (ex Ramassages)</a>
-    <a class="nav" data-go="none">Demandes &amp; Devis</a>
-    <a class="nav" data-go="none">Expéditions, Courses…</a>
     <a class="nav" data-go="suivi" id="nav-suivi">Suivi des envois <span class="nb red" id="nav-suivi-nb">0</span></a>
     <a class="nav" data-go="enlev" id="nav-enlev">Enlèvements extérieurs <span class="nb" id="nav-enlev-nb">0</span></a>
-    <a class="nav" data-go="none">Suivi flotte</a>
-    <a class="nav" data-go="none">Tournées MTI</a>
-    <a class="nav" data-go="none">Suivis &amp; Réclam.</a>
     <div class="side-foot">Maquette · données fictives</div>
   </aside>
 
@@ -49,12 +43,17 @@
 
       <div class="kpis" id="kpis"></div>
 
-      <div class="toolbar">
-        <div class="search"><span>⌕</span><input id="q" placeholder="Bordereau, réf. MTI, client, ville, CP…" title="La liste se filtre pendant la frappe"></div>
-        <div class="chips" id="carrier-chips"></div>
-        <button class="btn ghost sm" id="more-filters">Plus de filtres <span class="dot-count" id="mf-count" hidden></span></button>
-      </div>
-      <div class="more" id="more" hidden>
+      <div class="fpanel">
+        <div class="fp-top">
+          <div class="search"><span>⌕</span><input id="q" placeholder="Bordereau, réf. MTI, client, ville, CP…" title="La liste se filtre pendant la frappe"></div>
+          <button class="btn sm fbtn" id="more-filters"><span class="ico">⚙</span> Filtres <span class="dot-count" id="mf-count" hidden></span></button>
+          <button class="link fp-reset" id="reset" hidden>Effacer les filtres</button>
+        </div>
+        <div class="fp-row">
+          <span class="fp-l">Transporteur</span>
+          <div class="ctogs" id="carrier-chips"></div>
+        </div>
+      <div class="more fp-row" id="more" hidden>
         <label>Client <select id="f-client"><option value="">Tous</option></select></label>
         <label>Dossier <select id="f-dossier"><option value="">Tous</option><option>Non lu</option><option>En cours</option><option>Terminé</option></select></label>
         <label>Contenu <select id="f-contenu"><option value="">Tous</option><option>Marchandise</option><option>Document</option><option>Batterie lithium</option></select></label>
@@ -63,11 +62,10 @@
         <label class="ck"><input type="checkbox" id="f-ext"> Départ extérieur</label>
         <label class="ck"><input type="checkbox" id="f-payeur"> Sans payeur</label>
         <label class="ck"><input type="checkbox" id="f-annule"> Bordereaux annulés</label>
-        <button class="link" id="reset">Réinitialiser</button>
       </div>
-
+        <div class="fp-row fp-saved"><div class="saved" id="saved"></div></div>
+      </div>
       <div class="relance" id="relance"></div>
-      <div class="saved" id="saved"></div>
 
       <div class="views">
         <div class="tabs" id="views"></div>
@@ -128,13 +126,18 @@
 
       <div class="kpis" id="kpis-enl"></div>
 
-      <div class="toolbar">
-        <div class="search"><span>⌕</span><input id="qe" placeholder="N° d'enlèvement, client, ville, bordereau…"></div>
-        <div class="chips" id="carrier-chips-e"></div>
-        <div class="seg" id="mode">
-          <button data-m="board" class="on">Tableau</button>
-          <button data-m="list">Liste</button>
-          <button data-m="ville">Par ville</button>
+      <div class="fpanel">
+        <div class="fp-top">
+          <div class="search"><span>⌕</span><input id="qe" placeholder="N° d'enlèvement, client, ville, bordereau…"></div>
+          <div class="seg" id="mode">
+            <button data-m="board" class="on">Tableau</button>
+            <button data-m="list">Liste</button>
+            <button data-m="ville">Par ville</button>
+          </div>
+        </div>
+        <div class="fp-row">
+          <span class="fp-l">Transporteur</span>
+          <div class="ctogs" id="carrier-chips-e"></div>
         </div>
       </div>
 
