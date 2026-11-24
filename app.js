@@ -354,10 +354,21 @@
     }
     render(); if (reopen && state.open === e.id) openEnvoi(e.id, state.tab);
   }
+  // Étoile : un clic = traité (ou rouvert), avec « Annuler » quelques secondes
   function askLock(e) {
-    const x = extra(e);
-    state.ask = { id: e.id, kind: x.lock ? "unlock" : "lock" };
-    openEnvoi(e.id, state.open === e.id ? state.tab : "apercu");
+    const x = extra(e), was = { lock: x.lock, fv: x.factValide, n: x.log.length, ur: mailsOf(ctxE(e)).map(m => m.unread) };
+    const on = !x.lock;
+    on ? doLock(e) : doUnlock(e);
+    state.ask = null; render(); if (state.open === e.id) openEnvoi(e.id, state.tab);
+    toastUndo(on ? `★ ${e.ref} traité — rangé dans « Traités ★ »` : `${e.ref} rouvert — de nouveau à suivre`, () => {
+      x.lock = was.lock; x.factValide = was.fv; x.log.length = was.n; mailsOf(ctxE(e)).forEach((m, i) => m.unread = was.ur[i]);
+      render(); if (state.open === e.id) openEnvoi(e.id, state.tab); toast("Annulé");
+    });
+  }
+  function toastUndo(msg, undo) {
+    const t = $("#toast"); t.innerHTML = `<span>${esc(msg)}</span><button class="t-undo" id="t-undo">Annuler</button>`; t.hidden = false;
+    clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, 6000);
+    $("#t-undo").onclick = () => { clearTimeout(t._t); t.hidden = true; undo(); };
   }
   function doLock(e) {
     const x = extra(e);

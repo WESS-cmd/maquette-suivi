@@ -518,3 +518,7 @@ body.mail-open .mail-tab{right:calc(min(620px,100vw) + 420px)}
 .trajet .pt .vl{flex:1 1 0;min-width:0;max-width:none}
 .trajet .pt .tag.ext{flex-shrink:0}
 .rstar{color:#b8c0cc}.rstar:not(.on):hover{transform:scale(1.15)}
+.toast{display:flex;align-items:center;gap:14px}
+.toast[hidden]{display:none}
+.t-undo{background:none;border:0;color:#fde68a;font-weight:600;cursor:pointer;font-size:13px;padding:0;text-decoration:underline;text-underline-offset:3px}
+.rstar{font-size:19px;padding:4px}
