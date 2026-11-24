@@ -398,3 +398,19 @@ body.compact .grid .todo .al:nth-child(n+2){display:none}
 .vg-reg>span{flex:1;min-width:200px}
 @media (max-width:860px){.views{flex-wrap:wrap;gap:8px}.views .right{flex-wrap:wrap;gap:8px;width:100%}#density{display:none}}
 .todo{min-width:145px}
+
+/* Étiquettes transporteur aux couleurs de la marque */
+.cb{display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:24px;padding:0 8px;border-radius:5px;font-weight:800;font-size:12.5px;letter-spacing:.02em;line-height:1;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;vertical-align:middle}
+.cb b{font-weight:800}
+.cb.sm{min-width:0;height:19px;padding:0 6px;font-size:11px;border-radius:4px}
+.cb-tnt{background:#ff6600;color:#fff}
+.cb-ups{background:#351c15;color:#ffb500}
+.cb-dhl{background:#ffcc00;color:#d40511;font-style:italic}
+.cb-chrono{background:#0f4c97;color:#fff;font-weight:700}.cb-chrono b{color:#f9b200;font-weight:700}
+.cb-fedex{background:#4d148c;color:#fff}.cb-fedex b{color:#ff6600}
+.cb-dpd{background:#dc0032;color:#fff;text-transform:lowercase}
+.cb-mti{background:var(--primary);color:#fff}
+.cb-autre{background:#64748b;color:#fff}
+.grid td.tc{white-space:nowrap}
+.grid td.tc .presta{margin-top:4px;font-size:11.5px}
+.chip.on .cb{box-shadow:0 0 0 2px #fff}

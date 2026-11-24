@@ -5,6 +5,8 @@
   const fmtD = d => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
   const fmtDT = d => fmtD(d) + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const cColor = c => CARRIERS[c] || "var(--autre)";
+  const CB = { "TNT": ["tnt", "TNT"], "UPS": ["ups", "UPS"], "DHL Express": ["dhl", "DHL"], "Chronopost": ["chrono", "Chrono<b>post</b>"], "FedEx": ["fedex", "Fed<b>Ex</b>"], "DPD": ["dpd", "dpd"], "MTI Express": ["mti", "MTI"] };
+  const cb = (c, sz) => { const b = CB[c] || ["autre", c]; return `<span class="cb cb-${b[0]} ${sz || ""}" title="${c}">${b[1]}</span>`; };
   const ago = h => h < 1 ? "à l'instant" : h < 48 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
   const toast = m => { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, 2200); };
 
@@ -100,7 +102,7 @@
   function renderChips() {
     const base = ENVOIS.filter(baseFilter);
     const cs = Object.keys(CARRIERS).filter(c => ENVOIS.some(e => e.carrier === c));
-    $("#carrier-chips").innerHTML = cs.map(c => `<button class="chip ${state.carriers.has(c) ? "on" : ""}" data-c="${c}"><i class="cdot" style="background:${cColor(c)}"></i>${c}<span class="n">${base.filter(e => e.carrier === c).length}</span></button>`).join("");
+    $("#carrier-chips").innerHTML = cs.map(c => `<button class="chip ${state.carriers.has(c) ? "on" : ""}" data-c="${c}">${cb(c, "sm")}<span class="n">${base.filter(e => e.carrier === c).length}</span></button>`).join("");
     $$("#carrier-chips .chip").forEach(b => b.onclick = () => { const c = b.dataset.c; state.carriers.has(c) ? state.carriers.delete(c) : state.carriers.add(c); render(); });
   }
   function renderViews() {
@@ -127,13 +129,13 @@
     return `<tr class="u-${pr} ${x.lock ? "locked" : ""} ${state.sel.has(e.id) ? "sel" : ""} ${state.open === e.id ? "open" : ""}" data-id="${e.id}">
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
+      <td class="tc">${cb(e.carrier)}<div class="presta">${esc(e.presta)}</div></td>
       <td><div class="bord">${esc(e.bord)}</div><div class="ref">${esc(e.ref)}${e.colis > 1 ? ` · ${e.colis} colis` : ""}</div></td>
       <td><div class="cl">${esc(e.client)}</div><div class="cl-sub">${esc(e.sub || "—")}</div>${e.tags.filter(t => t[0] !== "ext").map(t => `<span class="tag ${t[0]}">${t[1]}</span>`).join("")}</td>
       <td><div class="trajet">
         <div class="pt"><span class="lbl">Dép.</span><span class="nm">${esc(e.dep.nom)}</span><span class="vl">${esc(e.dep.cp)} ${esc(e.dep.ville)}</span>${e.ext ? `<span class="tag ext" style="margin:0">Extérieur</span>` : ""}</div>
         <div class="pt"><span class="lbl">Liv.</span><span class="nm">${esc(e.liv.nom)}</span><span class="vl">${esc(e.liv.cp)} ${esc(e.liv.ville)}${e.liv.pays !== "France" ? ` · <b>${esc(e.liv.pays)}</b>` : ""}</span></div>
       </div></td>
-      <td><div class="carrier"><i class="cdot" style="background:${cColor(e.carrier)}"></i>${esc(e.carrier)}</div><div class="presta">${esc(e.presta)}</div></td>
       <td>${progress(e)}<div class="since-sub" style="margin-top:3px">Dernier scan <span class="since ${since}">${ago(e.lastScanH)}</span></div><div class="since-sub">${e.statut === "attente" ? "Créé le" : "Ramassé le"} ${fmtD(e.ramasse)}</div></td>
       <td><div class="todo">${todo}</div></td>
     </tr>`;
@@ -171,7 +173,7 @@
     const base = ENVOIS.filter(baseFilter).filter(e => e.statut !== "livre" && e.lastScanH > 48);
     const by = {}; base.forEach(e => by[e.carrier] = (by[e.carrier] || 0) + 1);
     const ent = Object.entries(by).sort((a, b) => b[1] - a[1]);
-    $("#relance").innerHTML = ent.length ? `<span class="rl-l">Sans nouvelles depuis plus de 48 h :</span>${ent.map(([c, n]) => `<button class="rl-c" data-c="${c}" title="Afficher ces envois"><i class="cdot" style="background:${cColor(c)}"></i>${c} <b>${n}</b></button>`).join("")}<button class="btn sm" id="rl-all">Relancer les ${ent.length} transporteurs</button>` : "";
+    $("#relance").innerHTML = ent.length ? `<span class="rl-l">Sans nouvelles depuis plus de 48 h :</span>${ent.map(([c, n]) => `<button class="rl-c" data-c="${c}" title="Afficher ces envois">${cb(c, "sm")} <b>${n}</b></button>`).join("")}<button class="btn sm" id="rl-all">Relancer les ${ent.length} transporteurs</button>` : "";
     $$("#relance .rl-c").forEach(b => b.onclick = () => { state.carriers = new Set([b.dataset.c]); state.kpi = "noscan"; render(); });
     if ($("#rl-all")) $("#rl-all").onclick = () => toast(`Relance envoyée à ${ent.map(x => x[0]).join(", ")} (${base.length} envois)`);
   }
@@ -373,7 +375,7 @@
     $("#d-prev").disabled = idx <= 0; $("#d-next").disabled = idx < 0 || idx >= L.length - 1;
     const starTitle = lk ? "Envoi clôturé — cliquer pour déverrouiller" : e.statut === "livre" ? "Clôturer et verrouiller l'envoi" : "Disponible une fois l'envoi livré";
     $("#d-ref").innerHTML = `<button class="star ${lk ? "on" : ""} ${e.statut !== "livre" && !lk ? "dis" : ""}" id="d-star" title="${starTitle}" aria-label="${starTitle}">${lk ? "★" : "☆"}</button><span>Détail transporteur — ${esc(e.ref)}</span><span class="st ${s.c}">${s.l}</span>`;
-    $("#d-sub").innerHTML = `<span class="mono">${esc(e.bord)}</span> · ${esc(e.client)} · <i class="cdot" style="background:${cColor(e.carrier)}"></i> ${esc(e.carrier)} ${esc(e.presta)}`;
+    $("#d-sub").innerHTML = `<span class="mono">${esc(e.bord)}</span> · ${esc(e.client)} · ${cb(e.carrier, "sm")} ${esc(e.presta)}`;
     $("#d-actions").innerHTML = `<button class="btn sm" data-h="refresh">↻ Rafraîchir le suivi</button><button class="btn sm" data-h="preuve">Demander la preuve</button><button class="btn sm ${e.prio === 2 ? "primary" : "outline-p"}" data-h="enquete">Ouvrir une enquête</button>
       <select class="btn sm sel-btn"><option>Déplacer dans dossier en cours</option><option>Non lu</option><option>En cours</option><option>Terminé</option></select><button class="btn sm" data-h="Envoi masqué de la liste">Masquer</button>`;
     $$("#d-actions button").forEach(b => b.onclick = () => doAct(e, b.dataset.h));
@@ -599,7 +601,7 @@
     $("#nav-enlev-nb").textContent = ENLEVEMENTS.filter(x => x.etat !== "ramasse").length;
 
     const cs = [...new Set(ENLEVEMENTS.map(x => x.carrier))];
-    $("#carrier-chips-e").innerHTML = cs.map(c => `<button class="chip ${est.carriers.has(c) ? "on" : ""}" data-c="${c}"><i class="cdot" style="background:${cColor(c)}"></i>${c}<span class="n">${ENLEVEMENTS.filter(x => x.carrier === c).length}</span></button>`).join("");
+    $("#carrier-chips-e").innerHTML = cs.map(c => `<button class="chip ${est.carriers.has(c) ? "on" : ""}" data-c="${c}">${cb(c, "sm")}<span class="n">${ENLEVEMENTS.filter(x => x.carrier === c).length}</span></button>`).join("");
     $$("#carrier-chips-e .chip").forEach(b => b.onclick = () => { const c = b.dataset.c; est.carriers.has(c) ? est.carriers.delete(c) : est.carriers.add(c); renderEnl(); });
 
     // jours
@@ -634,7 +636,7 @@
       const its = l.filter(x => x.etat === k);
       return `<div class="col"><div class="col-h"><div>${s.l}<small>${s.h}</small></div><span class="n">${its.length}</span></div>${its.map(card).join("") || `<div class="muted" style="font-size:12px;padding:8px 4px">Aucun enlèvement</div>`}</div>`;
     }).join("");
-    $("#erows").innerHTML = l.map(x => `<tr data-id="${x.id}" class="u-${isLate(x) ? "crit" : x.estime || x.etat === "a_reserver" ? "warn" : "ok"}"><td><b>${sameDay(x.date, NOW) ? "Aujourd'hui" : fmtD(x.date)}</b><div class="since-sub">${x.slot}</div></td><td class="mono">${x.conf || "—"}</td><td><div class="cl">${esc(x.client)}</div></td><td><div class="nm">${esc(x.lieu.nom)}</div><div class="vl muted" style="font-size:12px">${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div></td><td><div class="carrier"><i class="cdot" style="background:${cColor(x.carrier)}"></i>${x.carrier}</div></td><td>${x.colis} · ${x.poids}</td><td>${badge(x)}</td><td><span class="st ${isLate(x) ? "crit" : x.etat === "ramasse" ? "ok" : ""}">${ES[x.etat].l}</span></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Aucun enlèvement</td></tr>`;
+    $("#erows").innerHTML = l.map(x => `<tr data-id="${x.id}" class="u-${isLate(x) ? "crit" : x.estime || x.etat === "a_reserver" ? "warn" : "ok"}"><td><b>${sameDay(x.date, NOW) ? "Aujourd'hui" : fmtD(x.date)}</b><div class="since-sub">${x.slot}</div></td><td class="mono">${x.conf || "—"}</td><td><div class="cl">${esc(x.client)}</div></td><td><div class="nm">${esc(x.lieu.nom)}</div><div class="vl muted" style="font-size:12px">${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div></td><td>${cb(x.carrier)}</td><td>${x.colis} · ${x.poids}</td><td>${badge(x)}</td><td><span class="st ${isLate(x) ? "crit" : x.etat === "ramasse" ? "ok" : ""}">${ES[x.etat].l}</span></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Aucun enlèvement</td></tr>`;
     $$("#villes [data-a]").forEach(b => { if (!b.closest(".card")) b.onclick = ev => { ev.stopPropagation(); toast(b.dataset.a); }; });
     $$("#board .card, #villes .card, #erows tr[data-id]").forEach(c => c.onclick = ev => {
       const a = ev.target.dataset.a, x = ENLEVEMENTS[+c.dataset.id];
@@ -655,7 +657,7 @@
       <div class="r1"><span class="cn">${esc(x.client)}${x.auto ? ` <span class="badge auto" title="Passé automatiquement en Non ramassé">auto</span>` : ""}</span><span class="slot">${sameDay(x.date, NOW) ? "Auj." : fmtD(x.date)} · ${x.slot}</span></div>
       <div class="addr">${esc(x.lieu.nom)} — ${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div>
       ${x.motif ? `<div class="al crit" style="margin-top:6px"><i></i><span>${esc(x.motif)}</span></div>` : late && x.etat !== "echec" ? `<div class="al crit" style="margin-top:6px"><i></i><span>Date dépassée, pas de scan</span></div>` : ""}
-      <div class="r3"><span class="carrier" style="font-weight:500"><i class="cdot" style="background:${cColor(x.carrier)}"></i>${x.carrier} · ${x.colis} colis</span>${x.etat === "a_reserver" ? "" : badge(x)}</div>
+      <div class="r3"><span class="carrier" style="font-weight:500">${cb(x.carrier)} ${x.colis} colis</span>${x.etat === "a_reserver" ? "" : badge(x)}</div>
       <div class="act">${acts.map(a => `<button class="btn sm" data-a="${esc(a)}">${esc(a)}</button>`).join("")}</div>
     </div>`;
   }
@@ -665,7 +667,7 @@
     const order = ["a_reserver", "reserve", "ramasse"];
     const n = x.etat === "echec" ? 2 : order.indexOf(x.etat) + 1;
     $("#d-ref").innerHTML = `Enlèvement ${x.conf ? `<span class="mono" style="font-size:15px">${x.conf}</span>` : ""} ${badge(x)}`;
-    $("#d-sub").innerHTML = `${esc(x.client)} · <i class="cdot" style="background:${cColor(x.carrier)}"></i> ${x.carrier} · ${sameDay(x.date, NOW) ? "aujourd'hui" : x.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${x.slot}`;
+    $("#d-sub").innerHTML = `${esc(x.client)} · ${cb(x.carrier, "sm")} · ${sameDay(x.date, NOW) ? "aujourd'hui" : x.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${x.slot}`;
     actions(x.etat === "a_reserver" ? [["Réserver chez " + x.carrier, "primary"], ["Modifier"], ["Annuler", "danger"]]
       : x.etat === "echec" ? [["Prévenir le client"], ["Ouvrir une réclamation"]]
         : x.etat === "ramasse" ? [["Voir les envois liés"], ["Imprimer le récapitulatif"]]
