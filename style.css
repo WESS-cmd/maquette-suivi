@@ -514,3 +514,6 @@ body.mail-open .mail-tab{right:calc(min(620px,100vw) + 420px)}
   .mailp{width:100vw}
 }
 .subj{flex-wrap:wrap}.subj .tagp{margin:5px 0 0 6px}.subj .fld{flex-basis:100%}
+.trajet .pt .nm{flex:0 1 auto;min-width:0}
+.trajet .pt .vl{flex:1 1 0;min-width:0;max-width:none}
+.trajet .pt .tag.ext{flex-shrink:0}
