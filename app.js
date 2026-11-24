@@ -125,9 +125,9 @@
     const todo = reouv(e) ? `<div class="al crit"><i></i><span>Nouveau mail après traitement — à regarder</span></div><span class="muted" style="font-size:12px">★ Traité par ${esc(x.lock.by)}</span>` : x.lock ? `<span class="muted">★ Traité par ${esc(x.lock.by)} — on n'y revient plus</span>` : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
       + `<div class="qa">${als.slice(0, 2).map(a => `<button data-a="${esc(a.a)}">${esc(a.a)}</button>`).join("")}</div>`
       : `<span class="muted">Rien à faire</span>`;
-    const pr = reouv(e) ? "crit" : x.lock ? "ok" : ["ok", "warn", "crit"][e.prio];
-    const stc = x.lock ? `<span class="rstar on" title="Traité par ${esc(x.lock.by)} le ${x.lock.d}" aria-label="Traité">★</span>` : "";
-    return `<tr class="u-${pr} ${x.lock ? "locked" : ""} ${state.sel.has(e.id) ? "sel" : ""} ${state.open === e.id ? "open" : ""}" data-id="${e.id}">
+    const pr = reouv(e) ? "crit" : x.lock ? "lk" : ["ok", "warn", "crit"][e.prio];
+    const stc = x.lock ? `<span class="rstar on" title="Traité par ${esc(x.lock.by)} le ${x.lock.d}" aria-label="Traité">★</span>` : `<span class="rstar" title="Pas encore traité — se coche depuis la fiche" aria-label="Non traité">☆</span>`;
+    return `<tr class="u-${pr} ${x.lock ? "locked" : ""} ${state.sel.has(e.id) ? "sel" : ""} ${state.open === e.id ? "open" : ""} ${state.flash === e.id ? "flash" : ""}" data-id="${e.id}">
       <td><input type="checkbox" class="ck" ${state.sel.has(e.id) ? "checked" : ""} aria-label="Sélectionner"></td>
       <td class="stc">${stc}</td>
       <td class="tc">${cb(e.carrier)}<div class="presta">${esc(e.presta)}</div></td>
@@ -372,6 +372,7 @@
   function doLock(e) {
     const x = extra(e);
     if (e.statut === "livre" && !x.factValide && !x.noFact) { x.factValide = true; logx(x, `Facturation validée (${eur(e.ht + optTotal(x))} HT)`); }
+    state.flash = e.id; setTimeout(() => { if (state.flash === e.id) state.flash = null; }, 1800);
     x.lock = { by: ME, d: nowS() }; logx(x, "Marqué comme traité ★ — suivi terminé, envoi verrouillé");
     mailsOf(ctxE(e)).forEach(m => m.unread = false); // traité = mails lus
   }

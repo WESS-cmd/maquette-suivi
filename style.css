@@ -523,3 +523,13 @@ body.mail-open .mail-tab{right:calc(min(620px,100vw) + 420px)}
 .t-undo{background:none;border:0;color:#fde68a;font-weight:600;cursor:pointer;font-size:13px;padding:0;text-decoration:underline;text-underline-offset:3px}
 .rstar{font-size:19px;padding:4px}
 .rstar{cursor:default;display:inline-block}.rstar:not(.on):hover{transform:none}
+
+/* lignes traitées : surlignage */
+.grid tbody tr.locked td{background:#fef6d6}
+.grid tbody tr.locked:hover td{background:#fdefc0}
+tr.u-lk td:first-child::before{background:#eab308}
+.grid tbody tr.locked.sel td{background:#fbe9b0}
+.rstar:not(.on){color:#cbd2db;font-size:18px}
+.rstar.on{color:#eab308;font-size:20px;text-shadow:0 0 1px #a16207}
+@keyframes lkflash{0%{background:#fde68a}100%{background:#fef6d6}}
+.grid tbody tr.flash td{animation:lkflash 1.6s ease-out}
