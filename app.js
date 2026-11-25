@@ -357,6 +357,8 @@
     if (e.statut === "livre" && e.id % 10 === 3) { mk(1, RL_MOTIFS[0], "livre", { k: "oui", p: RL_P }, "18/11 09:20"); if (e.id % 20 === 13) mk(2, RL_MOTIFS[1], "livre", { k: "non", why: RL_WHY[1] }, "19/11 14:02", "Nouvelle adresse : 12 rue des Lilas, " + e.liv.cp + " " + e.liv.ville); }
     if (e.statut === "livre" && e.id % 10 === 7) mk(1, RL_MOTIFS[3], "livre", { k: "non", why: RL_WHY[1] }, "17/11 11:45");
     if ((e.statut === "livraison" || e.statut === "transit") && e.id % 8 === 5) mk(1, RL_MOTIFS[0], "cours", { k: null }, "22/11 10:" + String(10 + e.id % 40));
+    if (e.id === 47) { x.reliv[0].fact = { k: "oui", p: RL_P }; mk(2, RL_MOTIFS[1], "livre", { k: "non", why: RL_WHY[1] }, "19/11 14:02", "Nouvelle adresse : 12 rue des Lilas, " + e.liv.cp + " " + e.liv.ville); }
+    if (e.id === 57) x.reliv[0].fact = { k: "oui", p: 18 };
     x.reliv.forEach(r => x.log.push({ d: r.d, w: r.by, t: `Relivraison ${r.n} créée — ${r.motif}${r.bord ? " · nouveau bordereau " + r.bord : " · même bordereau"}` }));
     if (x.src.k === "import") { x.dem = null; x.log.push({ d: x.src.d, w: x.src.by, t: `Envoi importé depuis l'export du site ${e.carrier} (${x.src.file}) — pas de demande liée` }); }
     else x.log.push({ d: x.src.d, w: x.src.by, t: "Envoi créé dans le TMS — demande " + x.dem.id + " (" + x.dem.canal + ")" });
