@@ -566,3 +566,30 @@ tr.u-lk td:first-child::before{background:#eab308}
 .opt-add2{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .opt-add2 select{flex:1 1 260px}
 .opt-add2 label{display:flex;align-items:center;gap:4px;font-size:12px;color:#64748b}
+
+/* relivraisons */
+.rlv-g{margin-top:5px;display:flex;flex-direction:column;gap:3px;cursor:pointer}
+.rlv{display:flex;align-items:center;gap:5px;font-size:11.5px;white-space:nowrap;padding-left:8px;border-left:2px solid #c4b5fd}
+.rlv .mono{font-size:11px;color:#334155}
+.rlv-b{font-weight:700;color:#6d28d9;font-size:11px}
+.rlv-s{font-size:10.5px;font-weight:600;padding:0 6px;border-radius:9px;line-height:16px;background:#f1f5f9;color:#475569}
+.rlv-s.ok{background:#dcfce7;color:#166534}.rlv-s.blue{background:#dbeafe;color:#1e40af}.rlv-s.crit{background:#fee2e2;color:#991b1b}
+.rlf{font-size:10.5px;font-weight:600;padding:0 6px;border-radius:4px;line-height:16px}
+.rlf.oui{background:#ecfdf5;color:#047857}.rlf.non{background:#f1f5f9;color:#64748b;text-decoration:line-through}.rlf.q{background:#fff7ed;color:#c2410c;border:1px solid #fdba74}
+.chain{position:relative;margin-left:6px}
+.ch-i{display:flex;gap:12px;position:relative;padding:0 0 16px 0}
+.ch-i:not(:last-child)::before{content:"";position:absolute;left:6px;top:16px;bottom:0;width:2px;background:#e2e8f0}
+.ch-dot{width:14px;height:14px;border-radius:50%;background:#94a3b8;flex:none;margin-top:3px;border:3px solid #fff;box-shadow:0 0 0 1px #cbd5e1}
+.ch-dot.ok{background:#16a34a}.ch-dot.blue{background:#2563eb}.ch-dot.crit{background:#dc2626}
+.ch-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13.5px}
+.ch-h .mono{font-size:12px}
+.ch-d{font-size:12px;color:#64748b;margin-top:3px;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.ch-d .av{width:17px;height:17px;font-size:8.5px}
+.rf{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
+.rf-l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+.rf-p{display:flex;align-items:center;gap:4px;font-size:12.5px;color:#475569}.rf-p input{width:80px}
+.rf select{max-width:220px}
+.rl-form{margin-top:10px;padding:12px;border:1px dashed #c4b5fd;border-radius:10px;background:#faf5ff}
+.rl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rl-grid label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#64748b}
+.ftab tr.fo-off td b{color:#94a3b8}
