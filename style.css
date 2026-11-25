@@ -593,3 +593,10 @@ tr.u-lk td:first-child::before{background:#eab308}
 .rl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rl-grid label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#64748b}
 .ftab tr.fo-off td b{color:#94a3b8}
+
+.fb-btn{position:fixed;right:18px;bottom:18px;z-index:90;background:#0f172a;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 13px inherit;font-family:inherit;box-shadow:0 6px 20px rgba(15,23,42,.25);cursor:pointer}
+.fb-btn:hover{background:#1e293b}
+.fb{position:fixed;right:18px;bottom:66px;z-index:91;width:320px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.2);padding:14px;display:flex;flex-direction:column;gap:8px}
+.fb[hidden]{display:none}
+.fb-h{display:flex;justify-content:space-between;align-items:center}
+.fb textarea{resize:vertical;font-family:inherit}

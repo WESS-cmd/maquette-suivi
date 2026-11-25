@@ -197,5 +197,29 @@
 </div>
 <script src="data.js"></script>
 <script src="app.js"></script>
+<button id="fb-btn" class="fb-btn" title="Envoyer une remarque sur la maquette">Faire un retour</button>
+<div id="fb" class="fb" hidden>
+  <div class="fb-h"><b>Un retour sur la maquette ?</b><button class="link" id="fb-x" aria-label="Fermer">✕</button></div>
+  <div class="muted" id="fb-ctx" style="font-size:12px;margin-bottom:6px"></div>
+  <select class="fld" id="fb-t"><option>Idée / amélioration</option><option>Ce n'est pas clair</option><option>Il manque une info</option><option>Bug / ça ne marche pas</option></select>
+  <textarea class="fld" id="fb-m" rows="5" placeholder="Décrivez ce que vous voulez changer…"></textarea>
+  <input class="fld" id="fb-n" placeholder="Votre prénom">
+  <button class="btn sm primary" id="fb-go">Envoyer par mail</button>
+  <div class="muted" style="font-size:11.5px">Ouvre votre messagerie avec le retour prêt à envoyer à Wessim FARAG.</div>
+</div>
+<script>
+(function(){
+  var b=document.getElementById('fb-btn'),p=document.getElementById('fb');
+  function ctx(){var pg=document.getElementById('page-suivi')&&!document.getElementById('page-suivi').hidden?'Suivi des envois':'Enlèvements extérieurs';
+    var d=document.getElementById('drawer'),r=d&&d.classList.contains('on')?(document.getElementById('d-ref').innerText||'').replace(/[★☆]/g,'').trim():'';
+    var t=document.querySelector('#d-tabs .on, .dtabs .on');return pg+(r?' · '+r+(t?' · onglet '+t.innerText.replace(/\d+$/,'').trim():''):'');}
+  b.onclick=function(){p.hidden=!p.hidden;document.getElementById('fb-ctx').textContent='Page : '+ctx();if(!p.hidden)document.getElementById('fb-m').focus();};
+  document.getElementById('fb-x').onclick=function(){p.hidden=true;};
+  document.getElementById('fb-go').onclick=function(){var m=document.getElementById('fb-m').value.trim();if(!m){document.getElementById('fb-m').focus();return;}
+    var s='[Retour maquette Suivi] '+document.getElementById('fb-t').value;
+    var body='Page : '+ctx()+'\n\n'+m+'\n\n— '+(document.getElementById('fb-n').value||'');
+    location.href='mailto:wessim.farag@mti-express.fr?subject='+encodeURIComponent(s)+'&body='+encodeURIComponent(body);};
+})();
+</script>
 </body>
 </html>
