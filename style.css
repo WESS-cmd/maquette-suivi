@@ -600,3 +600,14 @@ tr.u-lk td:first-child::before{background:#eab308}
 .fb[hidden]{display:none}
 .fb-h{display:flex;justify-content:space-between;align-items:center}
 .fb textarea{resize:vertical;font-family:inherit}
+
+.ro{margin-top:8px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px}
+.ro-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ro-l{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;font-size:12.5px;padding:6px 0;border-top:1px solid #f1f5f9}
+.ro-l b{font-weight:600}.ro-l .n{white-space:nowrap;text-align:right}
+.ro-l.off b,.ro-l.off .n{color:#94a3b8;text-decoration:line-through}
+.ro-add{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.ro-add select{flex:1 1 220px;min-width:0}
+.rlf.opt{background:#f5f3ff;color:#6d28d9}
+.ftab tr.fo-sub td:first-child{padding-left:22px}
+.sub-a{color:#94a3b8}
