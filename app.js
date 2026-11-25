@@ -873,49 +873,169 @@
     a_reserver: { l: "À réserver", h: "Demande reçue, pas encore réservée chez le transporteur" },
     reserve: { l: "Réservé", h: "Enlèvement réservé, chauffeur pas encore passé" },
     ramasse: { l: "Ramassé", h: "Premier scan reçu du transporteur" },
-    echec: { l: "Non ramassé", h: "Chauffeur non passé ou échec — à replanifier" }
+    echec: { l: "Non effectué", h: "Chauffeur non passé ou échec — à replanifier" }
   };
-  const est = { q: "", carriers: new Set(), day: "all", mode: "board", kpi: null };
+  const est = { q: "", carriers: new Set(), mode: "list", kpi: null, cf: {}, sort: { k: "date", dir: 1 }, from: null, to: null, calM: 0, picking: false, pop: null };
+  est.cf.carrier = est.carriers;
   const sameDay = (a, b) => a.toDateString() === b.toDateString();
   const today0 = new Date(NOW); today0.setHours(0, 0, 0, 0);
   const isLate = x => x.etat === "echec" || (x.etat !== "ramasse" && x.date < today0);
   const slotEnd = x => { const [h, m] = x.slot.split("–")[1].split(":").map(Number); const d = new Date(x.date); d.setHours(h, m, 0, 0); return d; };
   const SLOTS = ["08:30–12:30", "09:00–12:00", "10:00–13:00", "13:00–17:00", "14:00–18:00"];
   const DEPTS = { "25": "Doubs", "69": "Rhône", "33": "Gironde", "26": "Drôme", "67": "Bas-Rhin", "38": "Isère", "92": "Hauts-de-Seine" };
-  // Règle automatique : réservé, créneau terminé et aucun scan → Non ramassé
+  // Règle automatique : réservé, créneau terminé et aucun scan → Non effectué
   ENLEVEMENTS.forEach(x => {
     x.hist = [];
     if (x.etat === "reserve" && slotEnd(x) < NOW) { x.etat = "echec"; x.auto = true; x.motif = `Aucun scan après la fin du créneau (${x.slot.split("–")[1]})`; }
   });
   function demConf(x) { x.demConf = "23/11 16:4" + (x.id % 10); x.hist.push(["Confirmation demandée à " + x.carrier, ME]); const se = state.enl, sk = state.dkind; state.enl = x.id; state.dkind = "enl"; autoMail(ctx(), "conf"); state.enl = se; state.dkind = sk; }
 
+  // ---- 4 statuts définitifs ----
+  const ST4 = {
+    encours: { l: "En cours", c: "or", h: "prévu aujourd'hui, pas encore réalisé" },
+    planifie: { l: "Planifié", c: "bl", h: "prévu à une autre date" },
+    nonfait: { l: "Non effectué", c: "rd", h: "non réalisé à la date prévue" },
+    realise: { l: "Enlèvement réalisé", c: "gr", h: "marchandise récupérée par le transporteur" }
+  };
+  const ST4O = ["encours", "planifie", "nonfait", "realise"], ST4S = ["nonfait", "encours", "planifie", "realise"];
+  const st4 = x => x.etat === "ramasse" ? "realise" : isLate(x) ? "nonfait" : sameDay(x.date, NOW) ? "encours" : "planifie";
+  const eref = x => "ENL-" + (2026100 + x.id);
+  const fD = d => d.toLocaleDateString("fr-FR");
+  const addD = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); r.setHours(0, 0, 0, 0); return r; };
+  const ECOLS = [
+    { k: "date", l: "Date d'enlèvement", v: x => fD(x.date), s: (a, b) => a.date - b.date || a.slot.localeCompare(b.slot), so: ["Plus ancienne d'abord", "Plus récente d'abord"] },
+    { k: "ref", l: "Réf. / Client", v: x => x.client, s: (a, b) => a.client.localeCompare(b.client) || a.id - b.id },
+    { k: "adr", l: "Adresse de départ", v: x => x.lieu.cp + " " + x.lieu.ville, s: (a, b) => a.lieu.cp.localeCompare(b.lieu.cp) || a.lieu.nom.localeCompare(b.lieu.nom) },
+    { k: "carrier", l: "Transporteur", v: x => x.carrier, s: (a, b) => a.carrier.localeCompare(b.carrier) },
+    { k: "dest", l: "Destination", v: x => x.dest.cp + " " + x.dest.ville, s: (a, b) => a.dest.ville.localeCompare(b.dest.ville) },
+    { k: "statut", l: "Statut", v: x => ST4[st4(x)].l, s: (a, b) => ST4S.indexOf(st4(a)) - ST4S.indexOf(st4(b)), so: ["Non effectués d'abord", "Réalisés d'abord"] }
+  ];
   const EK = [
-    { id: "today", l: "Aujourd'hui", h: "à ramasser", cls: "blue", f: x => sameDay(x.date, NOW) && x.etat !== "ramasse" },
-    { id: "reserver", l: "À réserver", h: "chez le transporteur", cls: "warn", f: x => x.etat === "a_reserver" },
+    ...ST4O.map(k => ({ id: k, l: ST4[k].l, h: ST4[k].h, cls: "k4 k-" + ST4[k].c, st: k })),
     { id: "estime", l: "Non confirmés", h: "date estimée, sans n° de confirmation", cls: "warn", f: x => x.estime && x.etat === "reserve" },
-    { id: "late", l: "Non ramassés", h: "échec ou en retard", cls: "crit", f: isLate },
-    { id: "done", l: "Ramassés", h: "sur la période", cls: "ok", f: x => x.etat === "ramasse" },
     { id: "colis", l: "Colis attendus", h: "aujourd'hui", cls: "", f: null }
   ];
-  function ebase(x) {
+  function pass(x, skip) {
     const q = est.q.trim().toLowerCase();
-    if (q && ![x.conf, x.client, x.lieu.nom, x.lieu.ville, x.lieu.cp, ...x.bords].join(" ").toLowerCase().includes(q)) return false;
-    if (est.carriers.size && !est.carriers.has(x.carrier)) return false;
+    if (q && ![eref(x), x.conf, x.client, x.lieu.nom, x.lieu.adr, x.lieu.ville, x.lieu.cp, x.dest.ville, x.dest.cp, x.carrier, ...x.bords].join(" ").toLowerCase().includes(q)) return false;
+    for (const c of ECOLS) { if (c.k === skip) continue; const S = est.cf[c.k]; if (S && S.size && !S.has(c.v(x))) return false; }
     return true;
   }
+  const inRange = x => (!est.from || x.date >= est.from) && (!est.to || x.date <= est.to);
+  const ebase = x => pass(x);
   function elist() {
-    let l = ENLEVEMENTS.filter(ebase);
-    if (est.day !== "all") l = l.filter(x => x.date.toDateString() === est.day);
+    let l = ENLEVEMENTS.filter(x => pass(x) && inRange(x));
     if (est.kpi) l = l.filter(EK.find(k => k.id === est.kpi).f);
-    return l.sort((a, b) => a.date - b.date || a.slot.localeCompare(b.slot));
+    const c = ECOLS.find(c => c.k === est.sort.k), d = est.sort.dir;
+    return l.sort((a, b) => d * c.s(a, b) || (a.date - b.date) || a.slot.localeCompare(b.slot));
   }
+  function setRange(f, t) { est.from = f; est.to = t || f; est.picking = false; }
+  function calLabel() {
+    if (!est.from) return "Toutes les dates";
+    if (sameDay(est.from, est.to)) return sameDay(est.from, NOW) ? "Aujourd'hui · " + fD(est.from) : "Le " + fD(est.from);
+    return `Du ${fD(est.from)} au ${fD(est.to)}`;
+  }
+  function calHTML() {
+    const m0 = new Date(NOW.getFullYear(), NOW.getMonth() + est.calM, 1), st = addD(m0, -((m0.getDay() + 6) % 7));
+    const t0 = today0, mon = addD(t0, -((t0.getDay() + 6) % 7));
+    const pre = [["Aujourd'hui", t0, t0], ["Demain", addD(t0, 1), addD(t0, 1)], ["Hier", addD(t0, -1), addD(t0, -1)], ["Cette semaine", mon, addD(mon, 6)], ["Semaine prochaine", addD(mon, 7), addD(mon, 13)], ["7 derniers jours", addD(t0, -6), t0], ["Ce mois-ci", new Date(t0.getFullYear(), t0.getMonth(), 1), new Date(t0.getFullYear(), t0.getMonth() + 1, 0)]];
+    const isOn = (f, t) => est.from && sameDay(est.from, f) && sameDay(est.to, t);
+    const iso = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
+    let cells = "";
+    for (let i = 0; i < 42; i++) {
+      const d = addD(st, i), its = ENLEVEMENTS.filter(x => pass(x) && sameDay(x.date, d));
+      const inR = est.from && d >= est.from && d <= est.to, edge = est.from && (sameDay(d, est.from) || sameDay(d, est.to));
+      const sts = ST4O.filter(k => its.some(x => st4(x) === k));
+      cells += `<button class="cd ${d.getMonth() !== m0.getMonth() ? "out" : ""} ${sameDay(d, NOW) ? "now" : ""} ${inR ? "in" : ""} ${edge ? "edge" : ""}" data-cd="${d.getTime()}" title="${its.length} enlèvement(s)"><span class="cn">${d.getDate()}</span><span class="cdots">${sts.map(k => `<i class="lg ${ST4[k].c}"></i>`).join("")}</span>${its.length ? `<span class="cc">${its.length}</span>` : ""}</button>`;
+    }
+    return `<div class="cal">
+      <div class="cal-pre">${pre.map(([l, f, t], i) => `<button class="chip ${isOn(f, t) ? "on" : ""}" data-pre="${i}">${l}</button>`).join("")}<button class="chip ${est.from ? "" : "on"}" data-pre="all">Toutes les dates</button></div>
+      <div class="cal-m"><div class="cal-h"><button class="icon-btn" data-cm="-1" aria-label="Mois précédent">‹</button><b>${m0.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</b><button class="icon-btn" data-cm="1" aria-label="Mois suivant">›</button></div>
+        <div class="cal-g">${["lun", "mar", "mer", "jeu", "ven", "sam", "dim"].map(d => `<span class="cw">${d}</span>`).join("")}${cells}</div>
+        <div class="cal-in"><label>Du <input type="date" class="fld" id="cal-f" value="${iso(est.from)}"></label><label>Au <input type="date" class="fld" id="cal-t" value="${iso(est.to)}"></label></div>
+        <div class="cal-hint muted">${est.picking ? "Cliquez sur la date de fin (ou gardez ce seul jour)" : "Cliquez un jour, puis un 2e pour une période"}</div></div>
+    </div>`;
+  }
+  function bindCal(root, again) {
+    const t0 = today0, mon = addD(t0, -((t0.getDay() + 6) % 7));
+    const pre = [[t0, t0], [addD(t0, 1), addD(t0, 1)], [addD(t0, -1), addD(t0, -1)], [mon, addD(mon, 6)], [addD(mon, 7), addD(mon, 13)], [addD(t0, -6), t0], [new Date(t0.getFullYear(), t0.getMonth(), 1), new Date(t0.getFullYear(), t0.getMonth() + 1, 0)]];
+    root.querySelectorAll("[data-pre]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const v = b.dataset.pre; if (v === "all") { est.from = est.to = null; est.picking = false; } else setRange(...pre[+v]); renderEnl(); again(); });
+    root.querySelectorAll("[data-cm]").forEach(b => b.onclick = ev => { ev.stopPropagation(); est.calM += +b.dataset.cm; again(); });
+    root.querySelectorAll("[data-cd]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const d = new Date(+b.dataset.cd);
+      if (est.picking && est.from) { if (d < est.from) { est.to = est.from; est.from = d; } else est.to = d; est.picking = false; } else { est.from = est.to = d; est.picking = true; }
+      renderEnl(); again(); });
+    const fi = root.querySelector("#cal-f"), ti = root.querySelector("#cal-t");
+    const upd = () => { const f = fi.value ? new Date(fi.value + "T00:00") : null, t = ti.value ? new Date(ti.value + "T00:00") : f; if (!f) { est.from = est.to = null; } else { est.from = f; est.to = t < f ? f : t; } est.picking = false; renderEnl(); again(); };
+    fi.onchange = upd; ti.onchange = upd;
+  }
+  // ---- popover (calendrier / filtre de colonne) ----
+  function closePop() { est.pop = null; $("#e-pop").hidden = true; $$(".e4t th.pop-on, #cal-btn.on").forEach(t => t.classList.remove("pop-on", "on")); }
+  function placePop(anchor) { const r = anchor.getBoundingClientRect(), P = $("#e-pop"); P.hidden = false; const w = P.offsetWidth; P.style.top = (r.bottom + 6) + "px"; P.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 12)) + "px"; }
+  function openPop(k, anchor) {
+    est.pop = k; const P = $("#e-pop");
+    if (k !== "cal" && !(anchor && anchor.isConnected)) anchor = $(`.e4t th[data-k="${k}"]`);
+    $$(".e4t th.pop-on").forEach(t => t.classList.remove("pop-on")); $("#cal-btn").classList.toggle("on", k === "cal");
+    if (k === "cal") { P.className = "pop pop-cal"; P.innerHTML = calHTML(); bindCal(P, () => openPop("cal", anchor)); return placePop(anchor); }
+    const c = ECOLS.find(c => c.k === k), th = $(`.e4t th[data-k="${k}"]`); th && th.classList.add("pop-on");
+    const so = c.so || ["Trier de A à Z", "Trier de Z à A"];
+    const sortH = `<div class="cf-sort"><button class="${est.sort.k === k && est.sort.dir === 1 ? "on" : ""}" data-so="1">↑ ${so[0]}</button><button class="${est.sort.k === k && est.sort.dir === -1 ? "on" : ""}" data-so="-1">↓ ${so[1]}</button></div>`;
+    if (k === "date") { P.className = "pop pop-cal"; P.innerHTML = `<div class="cf-t">${c.l}</div>${sortH}${calHTML()}`; bindCal(P, () => openPop("date", anchor)); }
+    else {
+      const S = est.cf[k] || (est.cf[k] = new Set()), q0 = (P.querySelector(".cf-q") || {}).value || "";
+      const cnt = {}; ENLEVEMENTS.filter(x => pass(x, k) && inRange(x)).forEach(x => { const v = c.v(x); cnt[v] = (cnt[v] || 0) + 1; });
+      S.forEach(v => cnt[v] = cnt[v] || 0);
+      let vals = Object.keys(cnt); vals.sort(k === "statut" ? (a, b) => ST4O.findIndex(s => ST4[s].l === a) - ST4O.findIndex(s => ST4[s].l === b) : (a, b) => a.localeCompare(b));
+      const shown = vals.filter(v => v.toLowerCase().includes(q0.toLowerCase()));
+      const lab = v => k === "carrier" ? cb(v, "sm") : k === "statut" ? `<span class="p4 p4-${ST4[ST4O.find(s => ST4[s].l === v)].c}">${esc(v)}</span>` : esc(v);
+      P.className = "pop pop-cf";
+      P.innerHTML = `<div class="cf-t">${c.l}</div>${sortH}<div class="cf-f">Filtrer</div><input class="fld cf-q" placeholder="Rechercher une valeur…" value="${esc(q0)}">
+        <label class="cf-o cf-all"><input type="checkbox" data-all ${S.size ? "" : "checked"}> <span>(Tout sélectionner)</span></label>
+        <div class="cf-l">${shown.map(v => `<label class="cf-o"><input type="checkbox" data-v="${esc(v)}" ${!S.size || S.has(v) ? "checked" : ""}> <span class="cf-v">${lab(v)}</span><span class="n">${cnt[v]}</span></label>`).join("") || `<div class="muted" style="padding:6px 4px">Aucune valeur</div>`}</div>
+        <div class="cf-b"><button class="btn sm" data-clr ${S.size ? "" : "disabled"}>Effacer le filtre</button><button class="btn sm primary" data-ok>OK</button></div>`;
+      const again = () => openPop(k, anchor);
+      P.querySelector(".cf-q").oninput = ev => { const pos = ev.target.selectionStart; openPop(k, anchor); const qi = P.querySelector(".cf-q"); qi.focus(); qi.setSelectionRange(pos, pos); };
+      P.querySelector("[data-all]").onchange = () => { S.clear(); renderEnl(); again(); };
+      P.querySelectorAll("[data-v]").forEach(cbx => cbx.onchange = () => { const v = cbx.dataset.v;
+        if (!S.size) { vals.forEach(y => S.add(y)); S.delete(v); } else if (cbx.checked) S.add(v); else S.delete(v);
+        if (vals.every(y => S.has(y))) S.clear(); if (!S.size && !cbx.checked) { /* tout décoché */ S.add("\u0000"); }
+        renderEnl(); again(); });
+      P.querySelector("[data-clr]").onclick = () => { S.clear(); renderEnl(); again(); };
+      P.querySelector("[data-ok]").onclick = closePop;
+    }
+    P.querySelectorAll("[data-so]").forEach(b => b.onclick = ev => { ev.stopPropagation(); est.sort = { k, dir: +b.dataset.so }; renderEnl(); openPop(k, anchor); });
+    placePop(anchor);
+  }
+  document.addEventListener("click", ev => { if (est.pop && !ev.target.closest("#e-pop") && !ev.target.closest("#cal-btn") && !ev.target.closest(".e4t th")) closePop(); });
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape" && est.pop) { ev.stopPropagation(); closePop(); } }, true);
+  addEventListener("resize", () => est.pop && closePop());
+
+  function dsub(x) {
+    const s = st4(x);
+    if (s === "realise") return sameDay(x.date, NOW) ? "Enlevé aujourd'hui" : "Enlevé";
+    if (s === "nonfait") return sameDay(x.date, NOW) ? "Aujourd'hui · créneau dépassé" : "Date dépassée";
+    if (s === "encours") return "Aujourd'hui · Jour J";
+    return sameDay(x.date, addD(today0, 1)) ? "Demain" : x.date.toLocaleDateString("fr-FR", { weekday: "long" });
+  }
+  function shint(x) {
+    const u = unreadOf(ctxL(x));
+    const h = x.etat === "a_reserver" ? "Pas encore réservé" : st4(x) === "nonfait" ? (x.motif || "Aucun scan du transporteur") + (x.auto ? " · auto" : "") : x.estime && x.etat === "reserve" ? (x.demConf ? "Date estimée · confirmation demandée" : "Date estimée, non confirmé") : "";
+    return (h ? `<div class="e4-h">${esc(h)}</div>` : "") + (u ? `<span class="mbadge new">✉ ${u}</span>` : "");
+  }
+  const pill = x => { const s = ST4[st4(x)]; return `<span class="p4 p4-${s.c}">${s.c === "gr" ? "✓ " : ""}${s.l}</span>`; };
+
   function renderEnl() {
-    const base = ENLEVEMENTS.filter(ebase);
+    const base = ENLEVEMENTS.filter(x => pass(x, "statut") && inRange(x));
+    const S = est.cf.statut || (est.cf.statut = new Set());
     $("#kpis-enl").innerHTML = EK.map(k => {
-      const v = k.f ? base.filter(k.f).length : base.filter(x => sameDay(x.date, NOW) && x.etat !== "ramasse").reduce((s, x) => s + x.colis, 0);
-      return `<button class="kpi ${k.cls} ${est.kpi === k.id ? "on" : ""}" data-k="${k.id}"><div class="v">${v}</div><div class="l">${k.l}</div><div class="h">${k.h}</div></button>`;
+      const v = k.st ? base.filter(x => st4(x) === k.st).length : k.f ? base.filter(k.f).length : ENLEVEMENTS.filter(x => pass(x) && sameDay(x.date, NOW) && x.etat !== "ramasse").reduce((s, x) => s + x.colis, 0);
+      const on = k.st ? S.size === 1 && S.has(ST4[k.st].l) : est.kpi === k.id;
+      return `<button class="kpi ${k.cls} ${on ? "on" : ""}" data-k="${k.id}"><div class="v">${v}</div><div class="l">${k.l}</div><div class="h">${k.h}</div></button>`;
     }).join("");
-    $$("#kpis-enl .kpi").forEach(b => b.onclick = () => { if (b.dataset.k === "colis") { est.day = NOW.toDateString(); est.kpi = null; } else est.kpi = est.kpi === b.dataset.k ? null : b.dataset.k; renderEnl(); });
+    $$("#kpis-enl .kpi").forEach(b => b.onclick = () => { const k = EK.find(k => k.id === b.dataset.k);
+      if (k.id === "colis") { setRange(today0); est.kpi = null; }
+      else if (k.st) { const l = ST4[k.st].l, on = S.size === 1 && S.has(l); S.clear(); if (!on) S.add(l); }
+      else est.kpi = est.kpi === k.id ? null : k.id;
+      renderEnl(); });
     $("#nav-enlev-nb").textContent = ENLEVEMENTS.filter(x => x.etat !== "ramasse").length;
 
     const cs = [...new Set(ENLEVEMENTS.map(x => x.carrier))];
@@ -923,15 +1043,17 @@
     $("#carrier-chips-e").classList.toggle("has-sel", est.carriers.size > 0);
     $$("#carrier-chips-e .ctog").forEach(b => b.onclick = () => { const c = b.dataset.c; if (!c) est.carriers.clear(); else est.carriers.has(c) ? est.carriers.delete(c) : est.carriers.add(c); renderEnl(); });
 
-    // jours
+    // jours (raccourcis du calendrier)
     const days = [...new Set(ENLEVEMENTS.map(x => x.date.toDateString()))].map(s => new Date(s)).sort((a, b) => a - b);
-    $("#days").innerHTML = `<button class="day ${est.day === "all" ? "on" : ""}" data-d="all"><div class="d1">Période</div><div class="d2">Tous</div><div class="d3">${base.length} enlèv.</div></button>` + days.map(d => {
-      const its = base.filter(x => sameDay(x.date, d));
-      const late = its.filter(isLate).length;
+    const b0 = ENLEVEMENTS.filter(x => pass(x));
+    $("#days").innerHTML = `<button class="day ${est.from ? "" : "on"}" data-d="all"><div class="d1">Période</div><div class="d2">Tous</div><div class="d3">${b0.length} enlèv.</div></button>` + days.map(d => {
+      const its = b0.filter(x => sameDay(x.date, d)), late = its.filter(isLate).length;
       const lbl = sameDay(d, NOW) ? "Aujourd'hui" : d.toLocaleDateString("fr-FR", { weekday: "long" });
-      return `<button class="day ${est.day === d.toDateString() ? "on" : ""} ${late ? "late" : ""}" data-d="${d.toDateString()}"><div class="d1">${lbl}</div><div class="d2">${d.getDate()} ${d.toLocaleDateString("fr-FR", { month: "short" })}</div><div class="d3">${late ? late + " non ramassé" + (late > 1 ? "s" : "") : its.length + " enlèv."}</div></button>`;
+      const on = est.from && sameDay(est.from, d) && sameDay(est.to, d), inR = est.from && !on && d >= est.from && d <= est.to;
+      return `<button class="day ${on ? "on" : ""} ${inR ? "inr" : ""} ${late ? "late" : ""}" data-d="${d.getTime()}"><div class="d1">${lbl}</div><div class="d2">${d.getDate()} ${d.toLocaleDateString("fr-FR", { month: "short" })}</div><div class="d3">${late ? late + " non effectué" + (late > 1 ? "s" : "") : its.length + " enlèv."}</div></button>`;
     }).join("");
-    $$("#days .day").forEach(b => b.onclick = () => { est.day = b.dataset.d; renderEnl(); });
+    $$("#days .day").forEach(b => b.onclick = () => { if (b.dataset.d === "all") { est.from = est.to = null; est.picking = false; } else setRange(new Date(+b.dataset.d)); renderEnl(); });
+    $("#cal-l").textContent = calLabel(); $("#cal-btn").classList.toggle("act", !!est.from);
 
     const l = elist();
     const ests = ENLEVEMENTS.filter(x => x.estime && x.etat === "reserve");
@@ -939,6 +1061,15 @@
     $("#est-banner").innerHTML = ests.length ? `<div class="est-ban"><span class="badge est">Estimé</span><div><b>${ests.length} enlèvement${ests.length > 1 ? "s" : ""} à date estimée</b> — le transporteur n'a pas encore confirmé le passage.${todo.length < ests.length ? ` <span class="muted">${ests.length - todo.length} confirmation(s) déjà demandée(s).</span>` : ""}</div><div class="acts">${todo.length ? `<button class="btn sm primary" id="ask-all">Demander les ${todo.length} confirmations</button>` : ""}<button class="btn sm" id="see-est">Voir</button></div></div>` : "";
     if ($("#ask-all")) $("#ask-all").onclick = () => { todo.forEach(demConf); toast(`${todo.length} demandes de confirmation envoyées`); renderEnl(); };
     if ($("#see-est")) $("#see-est").onclick = () => { est.kpi = "estime"; renderEnl(); };
+    // filtres actifs
+    const act = [];
+    if (est.from) act.push([`Date : ${calLabel()}`, () => { est.from = est.to = null; }]);
+    ECOLS.forEach(c => { const F = est.cf[c.k]; if (F && F.size) act.push([`${c.l} : ${[...F].filter(v => v !== "\u0000").join(", ") || "aucune valeur"}`, () => F.clear()]); });
+    if (est.kpi) act.push([EK.find(k => k.id === est.kpi).l, () => { est.kpi = null; }]);
+    if (est.q.trim()) act.push([`Recherche : « ${est.q.trim()} »`, () => { est.q = ""; $("#qe").value = ""; }]);
+    $("#e-actf").innerHTML = `<span class="e-cnt"><b>${l.length}</b> enlèvement${l.length > 1 ? "s" : ""}</span>` + act.map(([t], i) => `<button class="fchip" data-af="${i}" title="Retirer ce filtre">${esc(t)} <span>✕</span></button>`).join("") + (act.length > 1 ? `<button class="link" data-af="all">Tout effacer</button>` : "");
+    $$("#e-actf [data-af]").forEach(b => b.onclick = () => { if (b.dataset.af === "all") act.forEach(a => a[1]()); else act[+b.dataset.af][1](); renderEnl(); });
+
     $("#board").hidden = est.mode !== "board"; $("#elist").hidden = est.mode !== "list"; $("#villes").hidden = est.mode !== "ville";
     if (est.mode === "ville") {
       const g = {}; l.forEach(x => (g[x.lieu.cp.slice(0, 2)] ||= []).push(x));
@@ -951,11 +1082,23 @@
           <div class="vg-list">${its.map(card).join("")}</div></div>`;
       }).join("") || `<div class="muted">Aucun enlèvement</div>`;
     }
-    $("#board").innerHTML = Object.entries(ES).map(([k, s]) => {
-      const its = l.filter(x => x.etat === k);
-      return `<div class="col"><div class="col-h"><div>${s.l}<small>${s.h}</small></div><span class="n">${its.length}</span></div>${its.map(card).join("") || `<div class="muted" style="font-size:12px;padding:8px 4px">Aucun enlèvement</div>`}</div>`;
+    $("#board").innerHTML = ST4O.map(k => {
+      const its = l.filter(x => st4(x) === k);
+      return `<div class="col c4-${ST4[k].c}"><div class="col-h"><div>${ST4[k].l}<small>${ST4[k].h}</small></div><span class="n">${its.length}</span></div>${its.map(card).join("") || `<div class="muted" style="font-size:12px;padding:8px 4px">Aucun enlèvement</div>`}</div>`;
     }).join("");
-    $("#erows").innerHTML = l.map(x => `<tr data-id="${x.id}" class="u-${isLate(x) ? "crit" : x.estime || x.etat === "a_reserver" ? "warn" : "ok"}"><td><b>${sameDay(x.date, NOW) ? "Aujourd'hui" : fmtD(x.date)}</b><div class="since-sub">${x.slot}</div></td><td class="mono">${x.conf || "—"}</td><td><div class="cl">${esc(x.client)}</div></td><td><div class="nm">${esc(x.lieu.nom)}</div><div class="vl muted" style="font-size:12px">${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div></td><td>${cb(x.carrier)}</td><td>${x.colis} · ${x.poids}</td><td>${badge(x)}</td><td><span class="st ${isLate(x) ? "crit" : x.etat === "ramasse" ? "ok" : ""}">${ES[x.etat].l}</span></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Aucun enlèvement</td></tr>`;
+    $("#ehead").innerHTML = ECOLS.map(c => { const F = est.cf[c.k], fon = (F && F.size) || (c.k === "date" && est.from), son = est.sort.k === c.k;
+      return `<th data-k="${c.k}" class="${fon ? "f-on" : ""} ${son ? "s-on" : ""}"><button class="th-s" data-sort="${c.k}" title="Trier">${c.l}<span class="sa">${son ? (est.sort.dir === 1 ? "↑" : "↓") : "↕"}</span></button><button class="th-f" data-cf="${c.k}" title="Filtrer${c.k === "date" ? " — calendrier" : ""}" aria-label="Filtrer ${c.l}">${c.k === "date" ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>` : `<svg width="13" height="13" viewBox="0 0 24 24" fill="${fon ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>`}</button></th>`; }).join("");
+    $$("#ehead [data-sort]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const k = b.dataset.sort; est.sort = est.sort.k === k ? { k, dir: -est.sort.dir } : { k, dir: 1 }; renderEnl(); });
+    $$("#ehead [data-cf]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const k = b.dataset.cf; if (est.pop === k) return closePop(); openPop(k, b.closest("th")); });
+    $("#erows").innerHTML = l.map(x => { const s = ST4[st4(x)];
+      return `<tr data-id="${x.id}" class="e4 e4-${s.c}">
+        <td><b>${fD(x.date)}</b><div class="e4-s cap">${dsub(x)}</div><div class="e4-s">${x.slot}</div></td>
+        <td><b>${eref(x)}</b><div class="e4-s up">${esc(x.client)}</div></td>
+        <td><b>${esc(x.lieu.nom)}</b><div class="e4-s">${esc(x.lieu.adr)}</div><div class="e4-s">${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div></td>
+        <td>${cb(x.carrier)}<div class="e4-s">${x.colis} colis · ${x.poids}</div>${x.conf ? `<div class="e4-s">N° <span class="mono">${x.conf}</span></div>` : ""}</td>
+        <td><b>${esc(x.dest.ville)}</b><div class="e4-s">${esc(x.dest.cp)}</div></td>
+        <td>${pill(x)}${shint(x)}</td></tr>`; }).join("") || `<tr><td colspan="6" class="empty">Aucun enlèvement pour ces filtres</td></tr>`;
+    if (est.pop && est.pop !== "cal") { const th = $(`.e4t th[data-k="${est.pop}"]`); th && th.classList.add("pop-on"); }
     $$("#villes [data-a]").forEach(b => { if (!b.closest(".card")) b.onclick = ev => { ev.stopPropagation(); toast(b.dataset.a); }; });
     $$("#board .card, #villes .card, #erows tr[data-id]").forEach(c => c.onclick = ev => {
       const a = ev.target.dataset.a, x = ENLEVEMENTS[+c.dataset.id];
@@ -965,7 +1108,7 @@
   }
   function badge(x) {
     if (x.etat === "a_reserver") return `<span class="badge late">Pas encore réservé</span>`;
-    if (x.etat === "echec") return `<span class="badge late">Non ramassé</span>`;
+    if (x.etat === "echec") return `<span class="badge late">Non effectué</span>`;
     if (x.estime) return x.demConf ? `<span class="badge est">Estimé · confirmation demandée</span>` : `<span class="badge est">Estimé</span>`;
     return `<span class="badge conf">Confirmé</span>`;
   }
@@ -973,10 +1116,10 @@
     const late = isLate(x);
     const acts = { a_reserver: ["Réserver chez " + x.carrier], reserve: x.estime ? (x.demConf ? ["Relancer"] : ["Demander la confirmation"]) : ["Relancer"], ramasse: ["Voir les envois"], echec: ["Reprogrammer", "Prévenir le client"] }[x.etat];
     return `<div class="card ${x.estime && x.etat === "reserve" ? "est" : ""}" data-id="${x.id}" style="--cc:${cColor(x.carrier)}">
-      <div class="r1"><span class="cn">${esc(x.client)}${x.auto ? ` <span class="badge auto" title="Passé automatiquement en Non ramassé">auto</span>` : ""}</span><span class="slot">${sameDay(x.date, NOW) ? "Auj." : fmtD(x.date)} · ${x.slot}</span></div>
+      <div class="r1"><span class="cn">${esc(x.client)}${x.auto ? ` <span class="badge auto" title="Passé automatiquement en Non effectué">auto</span>` : ""}</span><span class="slot">${sameDay(x.date, NOW) ? "Auj." : fmtD(x.date)} · ${x.slot}</span></div>
       <div class="addr">${esc(x.lieu.nom)} — ${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div>
       ${x.motif ? `<div class="al crit" style="margin-top:6px"><i></i><span>${esc(x.motif)}</span></div>` : late && x.etat !== "echec" ? `<div class="al crit" style="margin-top:6px"><i></i><span>Date dépassée, pas de scan</span></div>` : ""}
-      <div class="r3"><span class="carrier" style="font-weight:500">${cb(x.carrier)} ${x.colis} colis${unreadOf(ctxL(x)) ? ` <span class="mbadge new">✉ ${unreadOf(ctxL(x))}</span>` : ""}</span>${x.etat === "a_reserver" ? "" : badge(x)}</div>
+      <div class="r3"><span class="carrier" style="font-weight:500">${cb(x.carrier)} ${x.colis} colis${unreadOf(ctxL(x)) ? ` <span class="mbadge new">✉ ${unreadOf(ctxL(x))}</span>` : ""}</span>${x.etat === "ramasse" || x.etat === "echec" ? pill(x) : x.etat === "a_reserver" ? "" : badge(x)}</div>
       <div class="act">${acts.map(a => `<button class="btn sm" data-a="${esc(a)}">${esc(a)}</button>`).join("")}</div>
     </div>`;
   }
@@ -986,7 +1129,7 @@
     state.dkind = "enl"; state.enl = id; state.etab = tab; $("#d-nav").hidden = true; $("#d-sum").hidden = true;
     const order = ["a_reserver", "reserve", "ramasse"];
     const n = x.etat === "echec" ? 2 : order.indexOf(x.etat) + 1;
-    $("#d-ref").innerHTML = `Enlèvement ${x.conf ? `<span class="mono" style="font-size:15px">${x.conf}</span>` : ""} ${badge(x)}`;
+    $("#d-ref").innerHTML = `Enlèvement ${eref(x)} ${pill(x)} ${x.etat !== "ramasse" && x.etat !== "echec" ? badge(x) : ""}`;
     $("#d-sub").innerHTML = `${esc(x.client)} · ${cb(x.carrier, "sm")} · ${sameDay(x.date, NOW) ? "aujourd'hui" : x.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${x.slot}`;
     actions(x.etat === "a_reserver" ? [["Réserver chez " + x.carrier, "primary"], ["Modifier"], ["Annuler", "danger"]]
       : x.etat === "echec" ? [["Prévenir le client"], ["Ouvrir une réclamation"]]
@@ -996,15 +1139,15 @@
     $$("#d-actions .btn").forEach(b => { if (b.textContent === "Demander la confirmation") b.onclick = () => { demConf(x); toast("Confirmation demandée à " + x.carrier); renderEnl(); openEnl(id, tab); }; });
     drawerTabs([{ id: "apercu", l: "Aperçu" }, { id: "bords", l: "Bordereaux", n: x.bords.length }, { id: "hist", l: "Historique" }], tab, t => openEnl(id, t));
     const B = $("#d-body");
-    const steps = ["Demandé", "Réservé", "Ramassé"];
-    if (tab === "apercu") B.innerHTML = `<div class="stepper">${steps.map((s, i) => `<div class="step ${i < n ? "d" : ""} ${i === n - 1 ? "cur" : ""} ${x.etat === "echec" && i === 2 ? "x" : ""}"><b></b>${x.etat === "echec" && i === 2 ? "Non ramassé" : s}</div>`).join("")}</div>
-      ${x.motif ? `<div class="alert-box"><b>${esc(x.motif)}</b>${x.auto ? "Passé automatiquement en « Non ramassé » : réservé, créneau terminé, aucun scan du transporteur." : "À replanifier avec le client et le transporteur."}<div class="acts"><button class="btn sm">Appeler ${esc(x.lieu.contact)}</button></div></div>
+    const steps = ["Demandé", "Planifié", "Enlèvement réalisé"];
+    if (tab === "apercu") B.innerHTML = `<div class="stepper">${steps.map((s, i) => `<div class="step ${i < n ? "d" : ""} ${i === n - 1 ? "cur" : ""} ${x.etat === "echec" && i === 2 ? "x" : ""}"><b></b>${x.etat === "echec" && i === 2 ? "Non effectué" : s}</div>`).join("")}</div>
+      ${x.motif ? `<div class="alert-box"><b>${esc(x.motif)}</b>${x.auto ? "Passé automatiquement en « Non effectué » : réservé, créneau terminé, aucun scan du transporteur." : "À replanifier avec le client et le transporteur."}<div class="acts"><button class="btn sm">Appeler ${esc(x.lieu.contact)}</button></div></div>
       <div class="box resched"><h3>Reprogrammer l'enlèvement</h3><div class="two"><label class="fl">Nouvelle date<input type="date" id="rs-d" class="fld" value="2026-11-24"></label><label class="fl">Créneau<select id="rs-s" class="fld">${SLOTS.map(s => `<option ${s === x.slot ? "selected" : ""}>${s}</option>`).join("")}</select></label></div><label class="ck" style="margin:8px 0;display:flex;gap:6px;font-size:13px"><input type="checkbox" id="rs-m" checked> Prévenir ${esc(x.lieu.contact)} par mail</label><button class="btn sm primary" id="rs-go">Reprogrammer chez ${x.carrier}</button></div>` : ""}
       ${x.estime && x.etat === "reserve" ? `<div class="alert-box warn"><b>Date estimée — pas de numéro de confirmation du transporteur</b>Saisir la confirmation dès réception pour sécuriser le passage.<div class="acts"><button class="btn sm primary">Saisir la confirmation</button><button class="btn sm">Relancer ${x.carrier}</button></div></div>` : ""}
       <div class="box"><h3>Lieu d'enlèvement</h3><b>${esc(x.lieu.nom)}</b><div class="muted">${esc(x.lieu.adr)}<br>${esc(x.lieu.cp)} ${esc(x.lieu.ville)}</div><dl class="kv" style="margin-top:10px"><dt>Contact sur place</dt><dd>${esc(x.lieu.contact)} · ${esc(x.lieu.tel)}</dd><dt>Créneau</dt><dd>${x.slot}</dd></dl></div>
-      <div class="box"><h3>Enlèvement</h3><dl class="kv"><dt>Transporteur</dt><dd>${x.carrier}</dd><dt>N° d'enlèvement</dt><dd class="mono">${x.conf || "—"}</dd><dt>Colis / poids</dt><dd>${x.colis} colis · ${x.poids}</dd><dt>Compte payeur</dt><dd>${esc(x.client)}</dd><dt>Demandé via</dt><dd>${x.demandePar}</dd></dl></div>`;
+      <div class="box"><h3>Enlèvement</h3><dl class="kv"><dt>Transporteur</dt><dd>${x.carrier}</dd><dt>N° d'enlèvement</dt><dd class="mono">${x.conf || "—"}</dd><dt>Colis / poids</dt><dd>${x.colis} colis · ${x.poids}</dd><dt>Destination</dt><dd>${esc(x.dest.cp)} ${esc(x.dest.ville)}</dd><dt>Compte payeur</dt><dd>${esc(x.client)}</dd><dt>Demandé via</dt><dd>${x.demandePar}</dd></dl></div>`;
     if (tab === "bords") B.innerHTML = `<div class="box"><h3>Bordereaux rattachés</h3><table class="grid"><thead><tr><th>Bordereau</th><th>Statut</th><th></th></tr></thead><tbody>${x.bords.map(b => `<tr><td class="mono">${b}</td><td>${x.etat === "ramasse" ? "Pris en charge" : "En attente du chauffeur"}</td><td><button class="link">Ouvrir dans le suivi</button></td></tr>`).join("")}</tbody></table>${x.colis > x.bords.length ? `<div class="al warn" style="margin-top:10px"><i></i><span>${x.colis - x.bords.length} colis sans bordereau rattaché</span></div>` : ""}<div style="margin-top:10px"><button class="btn sm">+ Rattacher un bordereau</button></div></div>`;
-    if (tab === "hist") B.innerHTML = `<div class="box"><h3>Historique</h3><ul class="tl">${[...x.hist.slice().reverse(), x.auto ? ["Passé automatiquement en Non ramassé — aucun scan après " + x.slot.split("–")[1], "Règle automatique"] : null, x.etat === "ramasse" ? ["Premier scan transporteur reçu", "auto"] : null, x.etat === "echec" ? [x.motif, "transporteur"] : null, x.conf && !x.estime ? ["Confirmation " + x.conf + " reçue", x.carrier] : null, x.etat !== "a_reserver" ? ["Réservé chez " + x.carrier, "Opérateur MTI"] : null, ["Demande créée", x.demandePar]].filter(Boolean).map((h, i) => `<li class="${i === 0 ? "first" : ""}"><span class="t">${fmtD(x.date)}</span><span class="b"></span><span>${esc(h[0])}<div class="loc">${esc(h[1])}</div></span></li>`).join("")}</ul></div>`;
+    if (tab === "hist") B.innerHTML = `<div class="box"><h3>Historique</h3><ul class="tl">${[...x.hist.slice().reverse(), x.auto ? ["Passé automatiquement en Non effectué — aucun scan après " + x.slot.split("–")[1], "Règle automatique"] : null, x.etat === "ramasse" ? ["Premier scan transporteur reçu", "auto"] : null, x.etat === "echec" ? [x.motif, "transporteur"] : null, x.conf && !x.estime ? ["Confirmation " + x.conf + " reçue", x.carrier] : null, x.etat !== "a_reserver" ? ["Réservé chez " + x.carrier, "Opérateur MTI"] : null, ["Demande créée", x.demandePar]].filter(Boolean).map((h, i) => `<li class="${i === 0 ? "first" : ""}"><span class="t">${fmtD(x.date)}</span><span class="b"></span><span>${esc(h[0])}<div class="loc">${esc(h[1])}</div></span></li>`).join("")}</ul></div>`;
     $$("#d-body .btn, #d-body .link").forEach(b => b.onclick = () => toast(b.textContent));
     if ($("#rs-go")) $("#rs-go").onclick = () => {
       const v = $("#rs-d").value; if (!v) return toast("Choisir une date");
@@ -1017,6 +1160,7 @@
   }
   $("#qe").addEventListener("input", e => { est.q = e.target.value; renderEnl(); });
   $$("#mode button").forEach(b => b.onclick = () => { est.mode = b.dataset.m; $$("#mode button").forEach(x => x.classList.toggle("on", x === b)); renderEnl(); });
+  $("#cal-btn").onclick = ev => { ev.stopPropagation(); if (est.pop === "cal") return closePop(); openPop("cal", $("#cal-btn")); };
   $("#btn-new-enl").onclick = () => toast("Formulaire de nouvel enlèvement — hors maquette");
 
   render(); renderEnl(); go(location.hash === "#enlev" ? "enlev" : "suivi");

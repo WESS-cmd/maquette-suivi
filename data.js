@@ -153,5 +153,7 @@ window.CARRIERS = {
       demandePar: pick(["Portail client", "Téléphone", "Mail", "Opérateur MTI"])
     });
   }
+  const DESTS = [["Bordeaux", "33000"], ["Lyon", "69003"], ["Toulouse", "31000"], ["Nantes", "44000"], ["Lille", "59000"], ["Marseille", "13002"], ["Roissy-en-France", "95700"], ["Rennes", "35000"], ["Strasbourg", "67100"], ["Nice", "06200"], ["Montpellier", "34000"]];
+  enl.forEach((x, i) => { let d = DESTS[(i * 7 + 3) % DESTS.length]; if (d[0] === x.lieu.ville) d = DESTS[(i * 7 + 4) % DESTS.length]; x.dest = { ville: d[0], cp: d[1] }; });
   window.ENLEVEMENTS = enl;
 })();

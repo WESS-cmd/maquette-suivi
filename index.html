@@ -14,8 +14,8 @@
   <aside class="side" id="side">
     <div class="brand"><span class="logo">MTI<small>EXPRESS</small></span><span class="bo">BackOffice</span></div>
     <div class="side-sec">Opérations</div>
-    <a class="nav" data-go="suivi" id="nav-suivi">Suivi des envois <span class="nb red" id="nav-suivi-nb">0</span></a>
     <a class="nav" data-go="enlev" id="nav-enlev">Enlèvements extérieurs <span class="nb" id="nav-enlev-nb">0</span></a>
+    <a class="nav" data-go="suivi" id="nav-suivi">Suivi des envois <span class="nb red" id="nav-suivi-nb">0</span></a>
     <div class="side-foot">Maquette · données fictives</div>
   </aside>
 
@@ -130,10 +130,11 @@
 
       <div class="fpanel">
         <div class="fp-top">
-          <div class="search"><span>⌕</span><input id="qe" placeholder="N° d'enlèvement, client, ville, bordereau…"></div>
+          <div class="search"><span>⌕</span><input id="qe" placeholder="Réf., client, adresse, destination, n° d'enlèvement, bordereau…"></div>
+          <button class="btn cal-btn" id="cal-btn" aria-haspopup="dialog"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span id="cal-l">Toutes les dates</span><span class="car">▾</span></button>
           <div class="seg" id="mode">
-            <button data-m="board" class="on">Tableau</button>
-            <button data-m="list">Liste</button>
+            <button data-m="list" class="on">Liste</button>
+            <button data-m="board">Par statut</button>
             <button data-m="ville">Par ville</button>
           </div>
         </div>
@@ -145,15 +146,20 @@
 
       <div id="est-banner"></div>
       <div class="days" id="days"></div>
+      <div class="e4-bar"><div class="e4-leg"><span><i class="lg or"></i>Orange : Jour J</span><span><i class="lg bl"></i>Bleu : autres jours</span><span><i class="lg rd"></i>Rouge : non effectué</span><span><i class="lg gr"></i>Vert : enlèvement réalisé</span></div><div id="e-actf" class="e-actf"></div></div>
       <div id="villes" hidden></div>
 
-      <div class="board" id="board"></div>
-      <div class="table-wrap" id="elist" hidden>
-        <table class="grid">
-          <thead><tr><th>Date / créneau</th><th>N° d'enlèvement</th><th>Client</th><th>Lieu d'enlèvement</th><th>Transporteur</th><th>Colis</th><th>Confirmation</th><th>État</th></tr></thead>
-          <tbody id="erows"></tbody>
-        </table>
+      <div class="board b4" id="board" hidden></div>
+      <div id="elist">
+        <div class="table-wrap e4-wrap">
+          <table class="grid e4t">
+            <thead><tr id="ehead"></tr></thead>
+            <tbody id="erows"></tbody>
+          </table>
+        </div>
+        <div class="e4-rule"><b>Règles de couleur :</b> orange = en cours le Jour J ; bleu = planifié à une autre date ; rouge = non effectué à la date prévue ; vert = enlèvement réalisé et confirmé.</div>
       </div>
+      <div class="pop" id="e-pop" hidden></div>
     </section>
   </main>
 
