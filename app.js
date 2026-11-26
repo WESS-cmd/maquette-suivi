@@ -738,8 +738,9 @@
           </tbody>
           <tfoot>
             <tr><td colspan="3">Transport</td><td class="n">${eur(e.ht)}</td><td></td></tr>
-            <tr><td colspan="3">Options (${x.options.length})</td><td class="n">${eur(optOnly(x))}</td><td></td></tr>
-            ${x.reliv.length ? `<tr><td colspan="3">Relivraisons / réétiquetages facturés (${x.reliv.filter(r => r.fact.k === "oui").length}/${x.reliv.length})</td><td class="n">${eur(relivT(x))}</td><td></td></tr>` : ""}
+            ${x.options.length ? x.options.map(o => `<tr class="tt-o"><td colspan="3">Option : ${esc(o.l)}${(o.q || 1) > 1 ? ` <span class="muted">(${o.q} × ${eur(o.p)})</span>` : ""}</td><td class="n">${eur(o.p * (o.q || 1))}</td><td></td></tr>`).join("") : `<tr class="tt-o"><td colspan="3">Options : aucune</td><td class="n">${eur(0)}</td><td></td></tr>`}
+            ${x.reliv.filter(r => r.fact.k === "oui").map(r => `<tr class="tt-o"><td colspan="3">${isRe(r) ? "Réétiquetage " + esc(e.carrier) : "Relivraison " + r.n} : transport</td><td class="n">${eur(r.fact.p || 0)}</td><td></td></tr>${r.opts.map(o => `<tr class="tt-o tt-sub"><td colspan="3">↳ Option ${isRe(r) ? "du réétiquetage" : "de la relivraison " + r.n} : ${esc(o.l)}${(o.q || 1) > 1 ? ` <span class="muted">(${o.q} × ${eur(o.p)})</span>` : ""}</td><td class="n">${eur(o.p * (o.q || 1))}</td><td></td></tr>`).join("")}`).join("")}
+            ${x.reliv.some(r => r.fact.k !== "oui") ? `<tr class="tt-o"><td colspan="3" class="muted">${x.reliv.filter(r => r.fact.k !== "oui").map(r => (isRe(r) ? "Réétiquetage" : "Relivraison " + r.n) + (r.fact.k === "non" ? " non facturé" + (isRe(r) ? "" : "e") : " à décider")).join(" · ")}</td><td class="n muted">${x.reliv.some(r => r.fact.k == null) ? "?" : eur(0)}</td><td></td></tr>` : ""}
             <tr class="t"><td colspan="3">Total HT</td><td class="n">${eur(tot)}</td><td></td></tr>
             <tr><td colspan="3">TVA 20 %</td><td class="n">${eur(tva)}</td><td></td></tr>
             <tr class="t2"><td colspan="3">Total TTC</td><td class="n">${eur(tot + tva)}</td><td></td></tr>
