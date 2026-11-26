@@ -696,3 +696,4 @@ tr.e4-gr td{background:var(--gr-bg)}tr.e4-gr td:first-child::before{background:v
 .c4-or .col-h{border-top:3px solid var(--or)}.c4-bl .col-h{border-top:3px solid var(--bl)}.c4-rd .col-h{border-top:3px solid var(--rd)}.c4-gr .col-h{border-top:3px solid var(--gr)}
 @media (max-width:760px){.cal{flex-direction:column}.cal-pre{flex-direction:row;flex-wrap:wrap;border-right:0;padding-right:0;min-width:0}.cal-m{width:100%}}
 .tt-o td{font-size:12.5px}.tt-sub td:first-child{padding-left:22px;color:#475569}
+.tt-b td{font-weight:600;font-size:12.5px;background:var(--surface2);border-top:1px solid var(--line)}.tt-b .mono{font-size:12px}
