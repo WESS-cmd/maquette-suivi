@@ -18,9 +18,13 @@
   var RL_MOTIFS = ["Destinataire absent", "Adresse erronée / incomplète", "Refus du destinataire", "Non réclamé en point relais", "Colis endommagé — renvoi", "Demande du client", "Réétiquetage TNT (nouveau n° en agence)"];
   var RL_RE = "Réétiquetage transporteur (déjà facturé sur l'envoi)";
   var isRe = r => r.type === "reetiq";
+  var isRet = r => r.type === "retour";
+  var RT_MOTIFS = ["Refus du destinataire", "Destinataire absent / non réclamé", "Délai de garde dépassé en point relais", "Adresse erronée / incomplète", "Colis endommagé", "Demande du client (rappel du colis)"];
+  var rlName = r => isRe(r) ? "Réétiquetage" : (isRet(r) ? "Retour " : "Relivraison ") + r.n;
+  var rlFem = r => isRet(r) || isRe(r) ? "" : "e";
   var RL_WHY = [RL_RE, "Geste commercial", "Faute du transporteur", "Erreur MTI", "Inclus dans le contrat client"];
-  var rlSt = r => r.statut === "livre" ? ["Livrée", "ok"] : r.statut === "echec" ? ["Échec", "crit"] : ["En cours", "blue"];
-  var rlFact = r => r.fact.k === "oui" ? `<span class="rlf oui">Facturée ${((r.fact.p || 0) + (r.opts || []).reduce((a, o) => a + o.p * (o.q || 1), 0)).toFixed(2)} €</span>${(r.opts || []).length ? `<span class="rlf opt">+${r.opts.length} option${r.opts.length > 1 ? "s" : ""}</span>` : ""}` : r.fact.k === "non" ? `<span class="rlf non" title="${r.fact.why || ""}">Non facturée</span>` : `<span class="rlf q">Facturer ?</span>`;
+  var rlSt = r => isRet(r) ? (r.statut === "livre" ? ["Retourné à l'expéditeur", "ok"] : ["Retour en cours", "warn"]) : r.statut === "livre" ? ["Livrée", "ok"] : r.statut === "echec" ? ["Échec", "crit"] : ["En cours", "blue"];
+  var rlFact = r => r.fact.k === "oui" ? `<span class="rlf oui">Facturé${rlFem(r)} ${((r.fact.p || 0) + (r.opts || []).reduce((a, o) => a + o.p * (o.q || 1), 0)).toFixed(2)} €</span>${(r.opts || []).length ? `<span class="rlf opt">+${r.opts.length} option${r.opts.length > 1 ? "s" : ""}</span>` : ""}` : r.fact.k === "non" ? `<span class="rlf non" title="${r.fact.why || ""}">Non facturé${rlFem(r)}</span>` : `<span class="rlf q">Facturer ?</span>`;
   var cslug = c => ({ "DHL Express": "dhl", "GLS France": "gls", "MTI Express": "mti" })[c] || c.toLowerCase();
 
   // ================= NAVIGATION =================
@@ -62,7 +66,7 @@
     { id: "cours", l: "En cours", f: e => e.statut !== "livre" },
     { id: "fact", l: "À facturer", f: e => aFacturer(e) },
     { id: "livre", l: "Livrés", f: e => e.statut === "livre" && !extra(e).lock },
-    { id: "reliv", l: "↻ Relivraisons", f: e => extra(e).reliv.length > 0 },
+    { id: "reliv", l: "↻ Relivraisons & retours", f: e => extra(e).reliv.length > 0 },
     { id: "clos", l: "Traités ★", f: e => !!extra(e).lock },
     { id: "all", l: "Tous", f: () => true }
   ];
@@ -135,7 +139,7 @@
   function rlLines(e) {
     const x = extra(e); if (!x.reliv.length) return "";
     return `<div class="rlv-g" data-rl="1" title="Relivraison(s) regroupée(s) avec l'envoi initial — cliquer pour ouvrir">${x.reliv.map(r => { const st = rlSt(r);
-      return `<div class="rlv"><span class="rlv-b">${isRe(r) ? "⟳ Réétiq." : "↻ Reliv. " + r.n}</span><span class="mono">${r.bord ? esc(r.bord) : "même n°"}</span><span class="rlv-s ${st[1]}">${st[0]}</span>${isRe(r) ? `<span class="rlf re" title="Les options de l'envoi suivent sur le nouveau n°, sans refacturation">${x.options.length ? x.options.length + " option" + (x.options.length > 1 ? "s" : "") + " suivie" + (x.options.length > 1 ? "s" : "") : "Pas de refacturation"}</span>${r.fact.k === "oui" ? rlFact(r) : ""}` : rlFact(r)}</div>`; }).join("")}</div>`;
+      return `<div class="rlv"><span class="rlv-b">${isRe(r) ? "⟳ Réétiq." : (isRet(r) ? "↩ Retour " : "↻ Reliv. ") + r.n}</span><span class="mono">${r.bord ? esc(r.bord) : "même n°"}</span><span class="rlv-s ${st[1]}">${st[0]}</span>${isRe(r) ? `<span class="rlf re" title="Les options de l'envoi suivent sur le nouveau n°, sans refacturation">${x.options.length ? x.options.length + " option" + (x.options.length > 1 ? "s" : "") + " suivie" + (x.options.length > 1 ? "s" : "") : "Pas de refacturation"}</span>${r.fact.k === "oui" ? rlFact(r) : ""}` : rlFact(r)}</div>`; }).join("")}</div>`;
   }
   function srcLine(e) {
     const x = extra(e), sc = x.src;
@@ -147,7 +151,7 @@
     const s = ST[e.statut];
     const since = e.statut === "livre" ? "" : e.lastScanH > 48 ? "crit" : e.lastScanH > 24 ? "warn" : "";
     const x = extra(e);
-    const als = x.lock ? [] : e.al.filter(a => !(a.a === "Demander la preuve" && x.preuve)).concat(rlTodo(x) ? [{ lv: "warn", t: "Relivraison : facturer ou pas ?", a: "Décider" }] : []).concat(aFacturer(e) ? [{ lv: "warn", t: `À facturer : ${eur(e.ht + optTotal(x))} HT`, a: "Valider la facturation" }] : []);
+    const als = x.lock ? [] : e.al.filter(a => !(a.a === "Demander la preuve" && x.preuve)).concat(rlTodo(x) ? [{ lv: "warn", t: (x.reliv.find(r => r.fact.k == null) || {}).type === "retour" ? "Retour : facturer ou pas ?" : "Relivraison : facturer ou pas ?", a: "Décider" }] : []).concat(aFacturer(e) ? [{ lv: "warn", t: `À facturer : ${eur(e.ht + optTotal(x))} HT`, a: "Valider la facturation" }] : []);
     const tby = x.lock ? `<div class="tby">${avatar(x.lock.by)}<span><b>★ Traité par ${esc(shortN(x.lock.by))}</b><br><span class="muted">le ${x.lock.d}</span></span></div>` : "";
     const todo = reouv(e) ? `<div class="al crit"><i></i><span>Nouveau mail après traitement — à regarder</span></div>${tby}` : x.lock ? tby : als.length ? als.slice(0, 2).map(a => `<div class="al ${a.lv}"><i></i><span>${esc(a.t)}</span></div>`).join("")
       + `<div class="qa">${als.slice(0, 2).map(a => `<button data-a="${esc(a.a)}">${esc(a.a)}</button>`).join("")}</div>`
@@ -370,10 +374,14 @@
     if ((e.statut === "livraison" || e.statut === "transit") && e.id % 8 === 5) mk(1, RL_MOTIFS[0], "cours", { k: null }, "22/11 10:" + String(10 + e.id % 40));
     if (e.id === 47) { x.reliv[0].fact = { k: "oui", p: e.ht }; mk(2, RL_MOTIFS[1], "livre", { k: "non", why: RL_WHY[2] }, "19/11 14:02", "Nouvelle adresse : 12 rue des Lilas, " + e.liv.cp + " " + e.liv.ville); }
     if (e.statut === "anomalie" && e.carrier !== "TNT" && e.id % 6 === 2) mk(1, RL_MOTIFS[0], "cours", { k: null }, "23/11 09:" + String(10 + e.id % 40));
+    const mkR = (motif, statut, fact, d, opt) => { const n = x.reliv.filter(isRet).length + 1; x.reliv.push({ n, type: "retour", bord: e.id % 3 ? newBord(e, 5 + n) : null, motif, statut, fact, by: OPS[(e.id + 2) % 4], d, adr: "Retour à l'expéditeur : " + e.dep.nom + ", " + e.dep.cp + " " + e.dep.ville, opts: opt ? [opt] : [], det: "" }); };
+    if (e.id === 47) mkR(RT_MOTIFS[0], "livre", { k: "oui", p: e.ht }, "21/11 16:20", { l: "Stockage (agence / sous douane)", p: 10, q: 2, by: OPS[1], d: "21/11 16:25", note: "2 jours en agence avant retour" });
+    if (!x.reliv.length && e.statut === "anomalie" && e.id % 6 === 4) mkR(RT_MOTIFS[1], "cours", { k: null }, "24/11 11:" + String(10 + e.id % 40));
+    if (!x.reliv.length && e.statut === "livre" && e.id % 10 === 9) mkR(RT_MOTIFS[e.id % 3 === 0 ? 3 : 2], "livre", e.id % 20 === 9 ? { k: "oui", p: e.ht } : { k: "non", why: RL_WHY[2] }, "19/11 10:" + String(10 + e.id % 40));
     if (e.id === 57) { x.reliv[0].fact = { k: "oui", p: 18 }; x.reliv[0].opts.push({ l: "Livraison avant 12h", p: 8, q: 1, by: x.reliv[0].by, d: x.reliv[0].d, note: "Reprise de l'envoi initial" }); }
     if (e.id === 47) x.reliv[0].opts.push({ l: "Livraison le samedi", p: 12, q: 1, by: x.reliv[0].by, d: x.reliv[0].d, note: "Demandé par le client pour la relivraison" });
     { const seen = new Set(); x.options = x.options.filter(o => !seen.has(okey(o.l)) && seen.add(okey(o.l))); x.reliv.forEach(r => { const t = new Set(r.opts.length && sameNo(r) ? takenEnv(x, r) : []); r.opts = r.opts.filter(o => !t.has(okey(o.l)) && t.add(okey(o.l))); }); }
-    x.reliv.forEach(r => x.log.push({ d: r.d, w: r.by, t: `${isRe(r) ? "Réétiquetage " + e.carrier : "Relivraison " + r.n} créé(e) — ${r.motif}${r.bord ? " · nouveau bordereau " + r.bord : " · même bordereau"}` }));
+    x.reliv.forEach(r => x.log.push({ d: r.d, w: r.by, t: `${isRe(r) ? "Réétiquetage " + e.carrier : rlName(r)} créé(e) — ${r.motif}${r.bord ? " · nouveau bordereau " + r.bord : " · même bordereau"}` }));
     if (x.src.k === "import") { x.dem = null; x.log.push({ d: x.src.d, w: x.src.by, t: `Envoi importé depuis l'export du site ${e.carrier} (${x.src.file}) — pas de demande liée` }); }
     else x.log.push({ d: x.src.d, w: x.src.by, t: "Envoi créé dans le TMS — demande " + x.dem.id + " (" + x.dem.canal + ")" });
     if (x.options.length) x.log.push({ d: "03/11 10:16", w: "Léa FIXMAN", t: "Option ajoutée : Enlèvement chez un tiers (15.00 €)" });
@@ -608,7 +616,7 @@
     const ev = events(e);
     const totalOpt = optTotal(x);
     drawerTabs([
-      { id: "apercu", l: "Envoi" }, { id: "suivi", l: "Suivi", n: ev.length }, ...(x.reliv.length || tab === "reliv" ? [{ id: "reliv", l: "↻ Relivraisons", n: x.reliv.length, dot: rlTodo(x) }] : []),
+      { id: "apercu", l: "Envoi" }, { id: "suivi", l: "Suivi", n: ev.length }, ...(x.reliv.length || tab === "reliv" ? [{ id: "reliv", l: "↻ Relivraisons & retours", n: x.reliv.length, dot: rlTodo(x) }] : []),
       { id: "colis", l: "Colis", dot: D.colis }, { id: "fact", l: "Facturation", n: x.options.length, dot: D.fact },
       { id: "docs", l: "Documents", n: x.preuve ? 1 : 0, dot: D.docs }, { id: "cmt", l: "Échanges", n: x.comments.length },
       { id: "hist", l: "Historique", n: x.log.length }
@@ -675,15 +683,15 @@
 
     if (tab === "reliv") {
       const f = state.rlNew === id;
-      html = `<div class="sec">${H("↻", "Envoi initial et relivraisons", x.reliv.length ? x.reliv.length + " relivraison" + (x.reliv.length > 1 ? "s" : "") : "")}
-        <div class="muted" style="font-size:12.5px;margin-bottom:10px">Les relivraisons restent regroupées avec l'envoi initial : même fiche, même ligne dans la liste, une seule facturation.</div>
+      html = `<div class="sec">${H("↻", "Envoi initial, relivraisons et retours", (() => { const a = x.reliv.filter(r => !isRet(r)).length, b = x.reliv.filter(isRet).length; return [a ? a + " relivraison" + (a > 1 ? "s" : "") : "", b ? b + " retour" + (b > 1 ? "s" : "") : ""].filter(Boolean).join(" · "); })())}
+        <div class="muted" style="font-size:12.5px;margin-bottom:10px">Les relivraisons et les retours restent regroupés avec l'envoi initial : même fiche, même ligne dans la liste, une seule facturation.</div>
         <div class="chain">
           <div class="ch-i ch-0"><span class="ch-dot"></span><div><div class="ch-h"><b>Envoi initial</b> <span class="mono">${esc(e.bord)}</span> ${cb(e.carrier, "sm")}</div>
             <div class="ch-d">Ramassé le ${fmtD(e.ramasse)} · ${esc(e.dep.ville)} → ${esc(e.liv.ville)} · ${e.colis} colis · ${esc(e.poids)}${x.reliv.length ? isRe(x.reliv[0]) ? ` · <span style="color:#0e7490">réétiqueté par ${esc(e.carrier)} en agence, nouveau n° ${esc(x.reliv[0].bord)}</span>` : ` · <span class="c-crit">livraison non aboutie : ${esc(x.reliv[0].motif.charAt(0).toLowerCase() + x.reliv[0].motif.slice(1))}</span>` : ""}</div></div></div>
           ${x.reliv.map((r, i) => { const st = rlSt(r);
-            return `<div class="ch-i"><span class="ch-dot ${st[1]}"></span><div style="flex:1">
-              <div class="ch-h"><b>${isRe(r) ? "Réétiquetage " + esc(e.carrier) : "Relivraison " + r.n}</b> <span class="mono">${r.bord ? esc(r.bord) : "même bordereau"}</span> <span class="rlv-s ${st[1]}">${st[0]}</span></div>
-              <div class="ch-d">${esc(r.motif)} · ${r.adr ? esc(r.adr) : "même adresse"} · créée par ${avatar(r.by)} ${esc(shortN(r.by))} le ${r.d}</div>
+            return `<div class="ch-i ${isRet(r) ? "ch-ret" : ""}"><span class="ch-dot ${st[1]}"></span><div style="flex:1">
+              <div class="ch-h"><b>${isRe(r) ? "Réétiquetage " + esc(e.carrier) : rlName(r)}</b> <span class="mono">${r.bord ? esc(r.bord) : "même bordereau"}</span> <span class="rlv-s ${st[1]}">${st[0]}</span></div>
+              <div class="ch-d">${esc(r.motif)} · ${r.adr ? esc(r.adr) : "même adresse"} · créé${rlFem(r)} par ${avatar(r.by)} ${esc(shortN(r.by))} le ${r.d}</div>
               <div class="rf">
                 <span class="rf-l">Facturation</span>
                 <div class="seg seg-sm"><button data-rf="${i}:oui" class="${r.fact.k === "oui" ? "on" : ""}" ${lk ? "disabled" : ""}>Facturer au client</button><button data-rf="${i}:non" class="${r.fact.k === "non" ? "on" : ""}" ${lk ? "disabled" : ""}>Ne pas facturer</button></div>
@@ -691,11 +699,12 @@
                   : r.fact.k === "non" ? `<select class="fld" data-rw="${i}" ${lk ? "disabled" : ""}><option value="">Motif…</option>${RL_WHY.map(w => `<option ${w === r.fact.why ? "selected" : ""}>${w}</option>`).join("")}</select>`
                   : `<span class="c-warn" style="font-size:12.5px">À décider avant de valider la facturation</span>`}
               </div>
+              ${isRet(r) ? `<div class="rt-box"><b>Retour à l'expéditeur.</b> Le colis revient chez ${esc(e.dep.nom)} (${esc(e.dep.cp)} ${esc(e.dep.ville)}). S'il est refacturé, il reprend le prix du transport initial ; ajoutez les frais éventuels (stockage, réétiquetage…) en options.</div>` : ""}
               ${isRe(r) ? `<div class="re-box"><b>Même envoi, nouveau n° posé par ${esc(e.carrier)}.</b> ${r.det ? esc(r.det) + ". " : ""}Les options déjà vendues suivent automatiquement sur le nouveau n° : elles restent facturées une seule fois, sur l'envoi initial.
                 ${x.options.length ? `<div class="re-opts">${x.options.map(o => `<div class="re-o"><span class="ok-i">✓</span><b>${esc(o.l)}</b><span class="muted">${eur((o.p || 0) * (o.q || 1))} · facturée sur l'envoi initial</span></div>`).join("")}</div>` : `<div class="muted" style="margin-top:4px">Aucune option sur l'envoi initial.</div>`}</div>` : ""}
               <div class="ro">
-                <div class="ro-h"><span class="rf-l">${isRe(r) ? "Frais en plus (ex. réétiquetage facturé par le transporteur)" : "Options de la relivraison"}</span>${r.opts.length ? `<span class="muted" style="font-size:12px">${r.opts.length} · ${eur(rOptT(r))} HT${r.fact.k === "non" ? " · non refacturées" : ""}</span>` : ""}</div>
-                ${r.opts.map((o, j) => `<div class="ro-l ${r.fact.k === "non" ? "off" : ""}"><div><b>${esc(o.l)}</b><div class="fo-d">${avatar(o.by)} ${esc(shortN(o.by))} · ${o.d}${o.note ? " · " + esc(o.note) : ""}</div></div><span class="n">${o.q || 1} × ${eur(o.p)}</span><b class="n">${eur(o.p * (o.q || 1))}</b>${lk ? "" : `<button class="link danger-l" data-rorm="${i}:${j}" title="Retirer">🗑</button>`}</div>`).join("") || `<div class="muted" style="font-size:12.5px">${isRe(r) ? "Aucun frais en plus." : "Aucune option refacturée sur cette relivraison."}</div>`}
+                <div class="ro-h"><span class="rf-l">${isRe(r) ? "Frais en plus (ex. réétiquetage facturé par le transporteur)" : isRet(r) ? "Options du retour" : "Options de la relivraison"}</span>${r.opts.length ? `<span class="muted" style="font-size:12px">${r.opts.length} · ${eur(rOptT(r))} HT${r.fact.k === "non" ? " · non refacturées" : ""}</span>` : ""}</div>
+                ${r.opts.map((o, j) => `<div class="ro-l ${r.fact.k === "non" ? "off" : ""}"><div><b>${esc(o.l)}</b><div class="fo-d">${avatar(o.by)} ${esc(shortN(o.by))} · ${o.d}${o.note ? " · " + esc(o.note) : ""}</div></div><span class="n">${o.q || 1} × ${eur(o.p)}</span><b class="n">${eur(o.p * (o.q || 1))}</b>${lk ? "" : `<button class="link danger-l" data-rorm="${i}:${j}" title="Retirer">🗑</button>`}</div>`).join("") || `<div class="muted" style="font-size:12.5px">${isRe(r) ? "Aucun frais en plus." : isRet(r) ? "Aucune option refacturée sur ce retour." : "Aucune option refacturée sur cette relivraison."}</div>`}
                 ${lk ? "" : `<div class="ro-add">
                   <select class="fld" id="ro-s-${i}"><option value="">+ Ajouter une option…</option>${OCATS.map(c => `<optgroup label="${c}">${OPTIONS.map((o, k) => [o, k]).filter(([o]) => OCAT(o[0]) === c).map(([o, k]) => `${takenR(x, r).includes(okey(o[0])) ? `<option value="${k}" disabled>✓ ${o[0]} — déjà sur ce bordereau</option>` : `<option value="${k}">${o[0]} — ${o[1] == null ? "tarif à saisir" : eur(o[1])}</option>`}`).join("")}</optgroup>`).join("")}</select>
                   <input class="fld" id="ro-q-${i}" value="1" style="width:48px" title="Quantité">
@@ -706,11 +715,11 @@
               </div></div></div>`; }).join("")}
         </div>
         ${lk ? "" : f ? `<div class="rl-form">
-          <div class="sub-h">Nouvelle relivraison</div>
+          <div class="sub-h">${state.rlKind === "retour" ? "Nouveau retour à l'expéditeur" : "Nouvelle relivraison"}</div>
           <div class="rl-grid">
-            <label>Motif <select class="fld" id="rl-m">${RL_MOTIFS.map(m => `<option>${m}</option>`).join("")}</select></label>
-            <label>Nouveau bordereau <input class="fld" id="rl-b" placeholder="Vide = même n° de bordereau"></label>
-            <label>Adresse <select class="fld" id="rl-a"><option value="">Même adresse</option><option value="new">Nouvelle adresse…</option></select></label>
+            <label>Motif <select class="fld" id="rl-m">${(state.rlKind === "retour" ? RT_MOTIFS : RL_MOTIFS).map(m => `<option>${m}</option>`).join("")}</select></label>
+            <label>${state.rlKind === "retour" ? "N° de retour" : "Nouveau bordereau"} <input class="fld" id="rl-b" placeholder="Vide = même n° de bordereau"></label>
+            <label>${state.rlKind === "retour" ? "Retour vers" : "Adresse"} <select class="fld" id="rl-a">${state.rlKind === "retour" ? `<option value="">Expéditeur — ${esc(e.dep.nom)}, ${esc(e.dep.ville)}</option><option value="new">Autre adresse…</option>` : `<option value="">Même adresse</option><option value="new">Nouvelle adresse…</option>`}</select></label>
             <label id="rl-a2w" hidden>Nouvelle adresse <input class="fld" id="rl-a2" placeholder="Rue, CP, ville"></label>
           </div>
           <div class="rf" style="margin-top:8px"><span class="rf-l">Facturation</span>
@@ -718,8 +727,8 @@
             <label class="rf-p" id="rl-pw"><input class="fld" id="rl-p" value="${e.ht.toFixed(2)}"> € HT <span class="muted rp-h">= prix du transport initial</span></label>
             <select class="fld" id="rl-w" hidden><option value="">Motif…</option>${RL_WHY.map(w => `<option>${w}</option>`).join("")}</select>
           </div>
-          <div style="margin-top:10px;display:flex;gap:8px"><button class="btn sm primary" id="rl-ok">Créer la relivraison</button><button class="btn sm" id="rl-no">Annuler</button></div>
-        </div>` : `<button class="btn sm" id="rl-new" style="margin-top:10px">+ Créer une relivraison</button>`}
+          <div style="margin-top:10px;display:flex;gap:8px"><button class="btn sm primary" id="rl-ok">${state.rlKind === "retour" ? "Créer le retour" : "Créer la relivraison"}</button><button class="btn sm" id="rl-no">Annuler</button></div>
+        </div>` : `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="rl-new">+ Créer une relivraison</button><button class="btn sm" id="rt-new">↩ Créer un retour</button></div>`}
       </div>`;
     }
 
@@ -741,21 +750,21 @@
               <td class="n">1</td><td class="n">${state.editPrix === id ? `<span class="prix-ed"><input id="px-in" class="fld" value="${e.ht.toFixed(2)}" style="width:80px"> <button class="btn sm primary" id="px-ok">OK</button><button class="link" id="px-no">✕</button></span>` : `${eur(e.ht)}${ro ? "" : ` <button class="link" id="px-ed" title="Modifier le prix de vente">✎</button>`}`}</td><td class="n"><b>${eur(e.ht)}</b></td><td></td></tr>
             ${byCat.map(([c, l]) => `<tr class="fcat"><td colspan="5">${c} <span class="muted">· ${l.length} option${l.length > 1 ? "s" : ""} · ${eur(l.reduce((a, [o]) => a + o.p * optQ(o), 0))}</span></td></tr>${l.map(oline).join("")}`).join("")}
             ${x.options.length ? "" : `<tr><td colspan="5" class="muted" style="font-size:13px;padding:10px 6px">Aucune option vendue sur cet envoi.</td></tr>`}
-            ${x.reliv.length ? `<tr class="fcat"><td colspan="5">Relivraisons &amp; réétiquetages <span class="muted">· ${x.reliv.length} · ${eur(relivT(x))}</span></td></tr>${x.reliv.map(r => `<tr class="fo ${r.fact.k === "non" ? "fo-off" : ""}"><td><b>${isRe(r) ? "Réétiquetage " + esc(e.carrier) : "Relivraison " + r.n}</b> <span class="mono" style="font-size:11.5px">${r.bord ? esc(r.bord) : "même n°"}</span><div class="fo-d">${esc(r.motif)} · ${avatar(r.by)} ${esc(shortN(r.by))} · ${r.d}${r.fact.k === "oui" ? `<div class="fo-n">${Math.abs((r.fact.p || 0) - e.ht) < .005 ? "Prix du transport initial repris" : "Prix modifié — transport initial " + eur(e.ht)}</div>` : ""}${r.fact.k === "non" ? `<div class="fo-n">Non facturée${r.fact.why ? " — " + esc(r.fact.why) : ""}</div>` : r.fact.k == null ? `<div class="fo-n c-warn">À décider : facturer ou non <button class="link" data-rlgo>Choisir</button></div>` : ""}</div></td><td class="n">1</td><td class="n">${r.fact.k === "oui" ? eur(r.fact.p || 0) : "—"}</td><td class="n"><b>${r.fact.k === "oui" ? eur(r.fact.p || 0) : r.fact.k === "non" ? "0.00 €" : "?"}</b></td><td></td></tr>${isRe(r) && x.options.length ? `<tr class="fo fo-sub fo-info"><td colspan="5"><span class="sub-a">↳</span> Options suivies sur le nouveau n°, déjà comptées plus haut : ${x.options.map(o => esc(o.l)).join(", ")} — pas de double facturation</td></tr>` : ""}${r.opts.map(o => `<tr class="fo fo-sub ${r.fact.k !== "oui" ? "fo-off" : ""}"><td><span class="sub-a">↳</span> <b>${esc(o.l)}</b><div class="fo-d">Option de la relivraison ${r.n} · ${avatar(o.by)} ${esc(shortN(o.by))}${o.note ? `<div class="fo-n">${esc(o.note)}</div>` : ""}</div></td><td class="n">${o.q || 1}</td><td class="n">${eur(o.p)}</td><td class="n"><b>${r.fact.k === "oui" ? eur(o.p * (o.q || 1)) : r.fact.k === "non" ? "0.00 €" : "?"}</b></td><td></td></tr>`).join("")}`).join("")}` : ""}
+            ${x.reliv.length ? `<tr class="fcat"><td colspan="5">Relivraisons, retours &amp; réétiquetages <span class="muted">· ${x.reliv.length} · ${eur(relivT(x))}</span></td></tr>${x.reliv.map(r => `<tr class="fo ${r.fact.k === "non" ? "fo-off" : ""}"><td><b>${isRe(r) ? "Réétiquetage " + esc(e.carrier) : rlName(r)}</b> <span class="mono" style="font-size:11.5px">${r.bord ? esc(r.bord) : "même n°"}</span><div class="fo-d">${esc(r.motif)} · ${avatar(r.by)} ${esc(shortN(r.by))} · ${r.d}${r.fact.k === "oui" ? `<div class="fo-n">${Math.abs((r.fact.p || 0) - e.ht) < .005 ? "Prix du transport initial repris" : "Prix modifié — transport initial " + eur(e.ht)}</div>` : ""}${r.fact.k === "non" ? `<div class="fo-n">Non facturée${r.fact.why ? " — " + esc(r.fact.why) : ""}</div>` : r.fact.k == null ? `<div class="fo-n c-warn">À décider : facturer ou non <button class="link" data-rlgo>Choisir</button></div>` : ""}</div></td><td class="n">1</td><td class="n">${r.fact.k === "oui" ? eur(r.fact.p || 0) : "—"}</td><td class="n"><b>${r.fact.k === "oui" ? eur(r.fact.p || 0) : r.fact.k === "non" ? "0.00 €" : "?"}</b></td><td></td></tr>${isRe(r) && x.options.length ? `<tr class="fo fo-sub fo-info"><td colspan="5"><span class="sub-a">↳</span> Options suivies sur le nouveau n°, déjà comptées plus haut : ${x.options.map(o => esc(o.l)).join(", ")} — pas de double facturation</td></tr>` : ""}${r.opts.map(o => `<tr class="fo fo-sub ${r.fact.k !== "oui" ? "fo-off" : ""}"><td><span class="sub-a">↳</span> <b>${esc(o.l)}</b><div class="fo-d">Option ${isRet(r) ? "du retour" : "de la relivraison"} ${r.n} · ${avatar(o.by)} ${esc(shortN(o.by))}${o.note ? `<div class="fo-n">${esc(o.note)}</div>` : ""}</div></td><td class="n">${o.q || 1}</td><td class="n">${eur(o.p)}</td><td class="n"><b>${r.fact.k === "oui" ? eur(o.p * (o.q || 1)) : r.fact.k === "non" ? "0.00 €" : "?"}</b></td><td></td></tr>`).join("")}`).join("")}` : ""}
           </tbody>
           <tfoot>
             ${(() => { const qx = o => (o.q || 1) > 1 ? ` <span class="muted">(${o.q} × ${eur(o.p)})</span>` : "";
               const ol = (o, sub) => `<tr class="tt-o ${sub ? "tt-sub" : ""}"><td colspan="3">${sub ? "↳ " : ""}Option : ${esc(o.l)}${qx(o)}</td><td class="n">${eur(o.p * (o.q || 1))}</td><td></td></tr>`;
               const same = x.reliv.filter(r => !r.bord && !isRe(r)), own = x.reliv.filter(r => r.bord && !isRe(r)), ret = x.reliv.filter(isRe);
-              const rl = r => r.fact.k === "oui" ? `<tr class="tt-o"><td colspan="3">Relivraison ${r.n} : transport</td><td class="n">${eur(r.fact.p || 0)}</td><td></td></tr>${r.opts.map(o => ol(o, 1)).join("")}`
-                : `<tr class="tt-o"><td colspan="3" class="muted">Relivraison ${r.n} ${r.fact.k === "non" ? "non facturée" + (r.fact.why ? " — " + esc(r.fact.why) : "") : "à décider"}</td><td class="n muted">${r.fact.k == null ? "?" : eur(0)}</td><td></td></tr>`;
+              const rl = r => r.fact.k === "oui" ? `<tr class="tt-o"><td colspan="3">${rlName(r)} : transport</td><td class="n">${eur(r.fact.p || 0)}</td><td></td></tr>${r.opts.map(o => ol(o, 1)).join("")}`
+                : `<tr class="tt-o"><td colspan="3" class="muted">${rlName(r)} ${r.fact.k === "non" ? "non facturé" + rlFem(r) + (r.fact.why ? " — " + esc(r.fact.why) : "") : "à décider"}</td><td class="n muted">${r.fact.k == null ? "?" : eur(0)}</td><td></td></tr>`;
               const sub = l => eur(l);
               let h = `<tr class="tt-b"><td colspan="3">Bordereau <span class="mono">${esc(e.bord)}</span> <span class="muted">· envoi initial${ret.length ? " · réétiqueté " + ret.map(r => esc(r.bord)).join(", ") : ""}</span></td><td class="n">${sub(e.ht + optOnly(x) + same.reduce((t, r) => t + (r.fact.k === "oui" ? rTot(r) : 0), 0) + ret.reduce((t, r) => t + (r.fact.k === "oui" ? rTot(r) : 0), 0))}</td><td></td></tr>
                 <tr class="tt-o"><td colspan="3">Transport ${esc(e.carrier)} — ${esc(e.presta)}</td><td class="n">${eur(e.ht)}</td><td></td></tr>
                 ${x.options.map(o => ol(o)).join("") || `<tr class="tt-o"><td colspan="3" class="muted">Aucune option</td><td class="n muted">${eur(0)}</td><td></td></tr>`}
                 ${ret.map(r => `<tr class="tt-o"><td colspan="3">Réétiquetage ${esc(e.carrier)} <span class="mono">${esc(r.bord)}</span> <span class="muted">· options suivies, non refacturées</span></td><td class="n">${r.fact.k === "oui" ? eur(r.fact.p || 0) : eur(0)}</td><td></td></tr>${r.opts.map(o => ol(o, 1)).join("")}`).join("")}
                 ${same.map(rl).join("")}`;
-              own.forEach(r => { h += `<tr class="tt-b"><td colspan="3">Bordereau <span class="mono">${esc(r.bord)}</span> <span class="muted">· relivraison ${r.n}</span></td><td class="n">${r.fact.k === "oui" ? sub(rTot(r)) : r.fact.k == null ? "?" : eur(0)}</td><td></td></tr>${rl(r)}`; });
+              own.forEach(r => { h += `<tr class="tt-b"><td colspan="3">Bordereau <span class="mono">${esc(r.bord)}</span> <span class="muted">· ${rlName(r).toLowerCase()}</span></td><td class="n">${r.fact.k === "oui" ? sub(rTot(r)) : r.fact.k == null ? "?" : eur(0)}</td><td></td></tr>${rl(r)}`; });
               return h; })()}
             <tr class="t"><td colspan="3">Total HT</td><td class="n">${eur(tot)}</td><td></td></tr>
             <tr><td colspan="3">TVA 20 %</td><td class="n">${eur(tva)}</td><td></td></tr>
@@ -828,38 +837,39 @@
       $("#ec-ign").onclick = () => { x.ecartOk = true; logx(x, "Écart de poids accepté sans surcoût"); re(); };
     }
     if ($("#ec-fix")) $("#ec-fix").onclick = () => toast("Corriger le poids / les dimensions");
-    if ($("#f-val")) $("#f-val").onclick = () => { if (rlTodo(x)) { toast("Décidez d'abord si la relivraison est facturée"); return openEnvoi(id, "reliv"); } doAct(e, "valider"); };
+    if ($("#f-val")) $("#f-val").onclick = () => { if (rlTodo(x)) { toast("Décidez d'abord si la relivraison / le retour est facturé"); return openEnvoi(id, "reliv"); } doAct(e, "valider"); };
     $$("[data-rlgo]").forEach(b => b.onclick = () => openEnvoi(id, "reliv"));
     $$("[data-rf]").forEach(b => b.onclick = () => { if (guard(x)) return; const [i, k] = b.dataset.rf.split(":"), r = x.reliv[+i]; if (r.fact.k === k) return;
-      r.fact = k === "oui" ? { k, p: r.fact.p || e.ht } : { k, why: r.fact.why || "" }; logx(x, `Relivraison ${r.n} : ${k === "oui" ? "facturée " + eur(r.fact.p) : "non facturée"}`); toast(k === "oui" ? `Relivraison ${r.n} facturée ${eur(r.fact.p)} HT` : `Relivraison ${r.n} non facturée`); re(); });
-    $$("[data-rp]").forEach(inp => inp.onchange = () => { const r = x.reliv[+inp.dataset.rp], v = parseFloat(inp.value.replace(",", ".")); if (!(v >= 0)) return toast("Prix invalide"); r.fact.p = v; logx(x, `Relivraison ${r.n} : prix ${eur(v)} HT`); re(); });
-    $$("[data-rpi]").forEach(b => b.onclick = () => { if (guard(x)) return; const r = x.reliv[+b.dataset.rpi]; r.fact.p = e.ht; logx(x, `Relivraison ${r.n} : prix du transport initial repris (${eur(e.ht)} HT)`); re(); });
-    $$("[data-rw]").forEach(sl => sl.onchange = () => { const r = x.reliv[+sl.dataset.rw]; r.fact.why = sl.value; logx(x, `Relivraison ${r.n} non facturée — ${sl.value}`); re(); });
+      r.fact = k === "oui" ? { k, p: r.fact.p || e.ht } : { k, why: r.fact.why || "" }; logx(x, `${rlName(r)} : ${k === "oui" ? "facturé" + rlFem(r) + " " + eur(r.fact.p) : "non facturé" + rlFem(r)}`); toast(k === "oui" ? `${rlName(r)} facturé${rlFem(r)} ${eur(r.fact.p)} HT` : `${rlName(r)} non facturé${rlFem(r)}`); re(); });
+    $$("[data-rp]").forEach(inp => inp.onchange = () => { const r = x.reliv[+inp.dataset.rp], v = parseFloat(inp.value.replace(",", ".")); if (!(v >= 0)) return toast("Prix invalide"); r.fact.p = v; logx(x, `${rlName(r)} : prix ${eur(v)} HT`); re(); });
+    $$("[data-rpi]").forEach(b => b.onclick = () => { if (guard(x)) return; const r = x.reliv[+b.dataset.rpi]; r.fact.p = e.ht; logx(x, `${rlName(r)} : prix du transport initial repris (${eur(e.ht)} HT)`); re(); });
+    $$("[data-rw]").forEach(sl => sl.onchange = () => { const r = x.reliv[+sl.dataset.rw]; r.fact.why = sl.value; logx(x, `${rlName(r)} non facturé${rlFem(r)} — ${sl.value}`); re(); });
     $$("[id^=ro-s-]").forEach(sl => sl.onchange = () => { const o = OPTIONS[sl.value], i = sl.id.slice(5); $("#ro-p-" + i).value = o && o[1] != null ? o[1].toFixed(2) : ""; });
     $$("[data-roadd]").forEach(b => b.onclick = () => { if (guard(x)) return; const i = +b.dataset.roadd, r = x.reliv[i], o = OPTIONS[$("#ro-s-" + i).value]; if (!o) return toast("Choisissez une option");
       const pu = parseFloat(($("#ro-p-" + i).value || "0").replace(",", ".")) || 0, q = Math.max(1, parseInt($("#ro-q-" + i).value) || 1);
       if (takenR(x, r).includes(okey(o[0]))) return toast(`« ${o[0]} » est déjà sur le bordereau ${bordOf(e, r)}${sameNo(r) && !r.opts.some(y => okey(y.l) === okey(o[0])) ? " (envoi initial, même n°)" : ""}`);
-      r.opts.push({ l: o[0], p: pu, q, by: ME, d: nowS(), note: "" }); logx(x, `Relivraison ${r.n} : option ajoutée — ${o[0]} (${q} × ${eur(pu)})`); toast(`Option ajoutée à la relivraison ${r.n}`); re(); });
+      r.opts.push({ l: o[0], p: pu, q, by: ME, d: nowS(), note: "" }); logx(x, `${rlName(r)} : option ajoutée — ${o[0]} (${q} × ${eur(pu)})`); toast(`Option ajoutée ${isRet(r) ? "au retour" : "à la relivraison"} ${r.n}`); re(); });
     $$("[data-rocp]").forEach(b => b.onclick = () => { if (guard(x)) return; const r = x.reliv[+b.dataset.rocp]; let n = 0;
       if (sameNo(r)) return toast(`Même n° de bordereau que l'envoi (${e.bord}) : les options y sont déjà, pas de doublon`);
       x.options.forEach(o => { if (!takenR(x, r).includes(okey(o.l))) { r.opts.push({ l: o.l, p: o.p, q: o.q || 1, by: ME, d: nowS(), note: "Reprise de l'envoi initial" }); n++; } });
-      logx(x, `Relivraison ${r.n} : ${n} option(s) reprise(s) de l'envoi initial`); toast(n ? `${n} option(s) reprise(s) sur la relivraison ${r.n}` : "Options déjà reprises"); re(); });
-    $$("[data-rorm]").forEach(b => b.onclick = () => { if (guard(x)) return; const [i, j] = b.dataset.rorm.split(":").map(Number), r = x.reliv[i], o = r.opts.splice(j, 1)[0]; logx(x, `Relivraison ${r.n} : option retirée — ${o.l}`); re(); });
-    if ($("#rl-new")) $("#rl-new").onclick = () => { state.rlNew = id; openEnvoi(id, "reliv"); };
+      logx(x, `${rlName(r)} : ${n} option(s) reprise(s) de l'envoi initial`); toast(n ? `${n} option(s) reprise(s) sur ${isRet(r) ? "le retour" : "la relivraison"} ${r.n}` : "Options déjà reprises"); re(); });
+    $$("[data-rorm]").forEach(b => b.onclick = () => { if (guard(x)) return; const [i, j] = b.dataset.rorm.split(":").map(Number), r = x.reliv[i], o = r.opts.splice(j, 1)[0]; logx(x, `${rlName(r)} : option retirée — ${o.l}`); re(); });
+    if ($("#rl-new")) $("#rl-new").onclick = () => { state.rlNew = id; state.rlKind = "reliv"; openEnvoi(id, "reliv"); };
+    if ($("#rt-new")) $("#rt-new").onclick = () => { state.rlNew = id; state.rlKind = "retour"; openEnvoi(id, "reliv"); };
     if ($("#rl-no")) $("#rl-no").onclick = () => { state.rlNew = null; openEnvoi(id, "reliv"); };
     if ($("#rl-ok")) {
       let fk = "oui";
       $("#rl-a").onchange = () => $("#rl-a2w").hidden = $("#rl-a").value !== "new";
-      $("#rl-m").onchange = () => { if ($("#rl-m").value === RL_MOTIFS[6]) { $$("#rl-fk button")[1].click(); $("#rl-w").value = RL_RE; $("#rl-b").placeholder = "Nouveau n° (obligatoire)"; toast("Réétiquetage : les options de l'envoi suivront sans être refacturées"); } else $("#rl-b").placeholder = "Vide = même n° de bordereau"; };
+      $("#rl-m").onchange = () => { if (state.rlKind !== "retour" && $("#rl-m").value === RL_MOTIFS[6]) { $$("#rl-fk button")[1].click(); $("#rl-w").value = RL_RE; $("#rl-b").placeholder = "Nouveau n° (obligatoire)"; toast("Réétiquetage : les options de l'envoi suivront sans être refacturées"); } else $("#rl-b").placeholder = "Vide = même n° de bordereau"; };
       $$("#rl-fk button").forEach(b => b.onclick = () => { fk = b.dataset.k; $$("#rl-fk button").forEach(y => y.classList.toggle("on", y === b)); $("#rl-pw").hidden = fk !== "oui"; $("#rl-w").hidden = fk !== "non"; });
-      $("#rl-ok").onclick = () => { const n = x.reliv.length + 1, b = $("#rl-b").value.trim(), a2 = $("#rl-a").value === "new" ? $("#rl-a2").value.trim() : "";
-        const mt = $("#rl-m").value, re2 = mt === RL_MOTIFS[6];
+      $("#rl-ok").onclick = () => { const rt = state.rlKind === "retour", b = $("#rl-b").value.trim(), a2 = $("#rl-a").value === "new" ? $("#rl-a2").value.trim() : "";
+        const mt = $("#rl-m").value, re2 = !rt && mt === RL_MOTIFS[6], ty = rt ? "retour" : re2 ? "reetiq" : "reliv", n = x.reliv.filter(y => (y.type || "reliv") === ty).length + 1;
         if (re2 && !b) { toast("Indiquez le nouveau n° posé par le transporteur"); return $("#rl-b").focus(); }
-        const r = { n, type: re2 ? "reetiq" : "reliv", det: "", opts: [], bord: b || null, motif: mt, statut: "cours", by: ME, d: nowS(), adr: a2 ? "Nouvelle adresse : " + a2 : null,
+        const r = { n, type: ty, det: "", opts: [], bord: b || null, motif: mt, statut: "cours", by: ME, d: nowS(), adr: rt ? (a2 ? "Retour vers : " + a2 : "Retour à l'expéditeur : " + e.dep.nom + ", " + e.dep.cp + " " + e.dep.ville) : a2 ? "Nouvelle adresse : " + a2 : null,
           fact: fk === "oui" ? { k: "oui", p: parseFloat($("#rl-p").value.replace(",", ".")) || 0 } : fk === "non" ? { k: "non", why: $("#rl-w").value } : { k: null } };
         x.reliv.push(r); state.rlNew = null;
-        logx(x, `${re2 ? "Réétiquetage" : "Relivraison " + n} créé(e) — ${r.motif}${r.bord ? " · nouveau bordereau " + r.bord : " · même bordereau"}${r.fact.k === "oui" ? " · facturée " + eur(r.fact.p) : r.fact.k === "non" ? " · non facturée" : ""}`);
-        toast(`Relivraison ${n} ajoutée à ${e.ref}`); re(); };
+        logx(x, `${rlName(r)} créé${rlFem(r)} — ${r.motif}${r.bord ? " · nouveau bordereau " + r.bord : " · même bordereau"}${r.fact.k === "oui" ? " · facturé" + rlFem(r) + " " + eur(r.fact.p) : r.fact.k === "non" ? " · non facturé" + rlFem(r) : ""}`);
+        toast(`${rlName(r)} ajouté${rlFem(r)} à ${e.ref}`); re(); };
     }
     if ($("#dc-preuve")) $("#dc-preuve").onclick = () => doAct(e, "preuve");
     if ($("#px-ed")) $("#px-ed").onclick = () => { state.editPrix = id; openEnvoi(id, "fact"); $("#px-in").focus(); };
