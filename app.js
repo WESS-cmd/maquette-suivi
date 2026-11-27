@@ -19,7 +19,14 @@
   var RL_RE = "Réétiquetage transporteur (déjà facturé sur l'envoi)";
   var isRe = r => r.type === "reetiq";
   var isRet = r => r.type === "retour";
-  var RT_MOTIFS = ["Refus du destinataire", "Destinataire absent / non réclamé", "Délai de garde dépassé en point relais", "Adresse erronée / incomplète", "Colis endommagé", "Demande du client (rappel du colis)"];
+  var RT_GROUPS = [
+    ["Destinataire", ["Destinataire absent", "Refus du destinataire", "Non réclamé (avis de passage laissé)", "Délai de garde dépassé en point relais", "Destinataire inconnu à l'adresse", "Destinataire déménagé", "Société fermée / en liquidation", "Rétractation du destinataire (retour volontaire)"]],
+    ["Adresse & accès", ["Adresse erronée / incomplète", "Accès impossible (digicode, site fermé, zone non desservie)"]],
+    ["Colis & marchandise", ["Colis endommagé", "Colis refusé car endommagé", "Erreur de préparation (mauvais produit / quantité)", "Marchandise non conforme ou interdite au transport"]],
+    ["Douane & international", ["Droits et taxes non payés par le destinataire", "Documents douaniers manquants / blocage douane"]],
+    ["Client / expéditeur", ["Demande du client (rappel du colis)", "Commande annulée par le client"]]
+  ];
+  var RT_MOTIFS = RT_GROUPS.flatMap(g => g[1]);
   var rlName = r => isRe(r) ? "Réétiquetage" : (isRet(r) ? "Retour " : "Relivraison ") + r.n;
   var rlFem = r => isRet(r) || isRe(r) ? "" : "e";
   var RL_WHY = [RL_RE, "Geste commercial", "Faute du transporteur", "Erreur MTI", "Inclus dans le contrat client"];
@@ -375,9 +382,9 @@
     if (e.id === 47) { x.reliv[0].fact = { k: "oui", p: e.ht }; mk(2, RL_MOTIFS[1], "livre", { k: "non", why: RL_WHY[2] }, "19/11 14:02", "Nouvelle adresse : 12 rue des Lilas, " + e.liv.cp + " " + e.liv.ville); }
     if (e.statut === "anomalie" && e.carrier !== "TNT" && e.id % 6 === 2) mk(1, RL_MOTIFS[0], "cours", { k: null }, "23/11 09:" + String(10 + e.id % 40));
     const mkR = (motif, statut, fact, d, opt) => { const n = x.reliv.filter(isRet).length + 1; x.reliv.push({ n, type: "retour", bord: e.id % 3 ? newBord(e, 5 + n) : null, motif, statut, fact, by: OPS[(e.id + 2) % 4], d, adr: "Retour à l'expéditeur : " + e.dep.nom + ", " + e.dep.cp + " " + e.dep.ville, opts: opt ? [opt] : [], det: "" }); };
-    if (e.id === 47) mkR(RT_MOTIFS[0], "livre", { k: "oui", p: e.ht }, "21/11 16:20", { l: "Stockage (agence / sous douane)", p: 10, q: 2, by: OPS[1], d: "21/11 16:25", note: "2 jours en agence avant retour" });
-    if (!x.reliv.length && e.statut === "anomalie" && e.id % 6 === 4) mkR(RT_MOTIFS[1], "cours", { k: null }, "24/11 11:" + String(10 + e.id % 40));
-    if (!x.reliv.length && e.statut === "livre" && e.id % 10 === 9) mkR(RT_MOTIFS[e.id % 3 === 0 ? 3 : 2], "livre", e.id % 20 === 9 ? { k: "oui", p: e.ht } : { k: "non", why: RL_WHY[2] }, "19/11 10:" + String(10 + e.id % 40));
+    if (e.id === 47) mkR("Refus du destinataire", "livre", { k: "oui", p: e.ht }, "21/11 16:20", { l: "Stockage (agence / sous douane)", p: 10, q: 2, by: OPS[1], d: "21/11 16:25", note: "2 jours en agence avant retour" });
+    if (!x.reliv.length && e.statut === "anomalie" && e.id % 6 === 4) mkR("Destinataire absent", "cours", { k: null }, "24/11 11:" + String(10 + e.id % 40));
+    if (!x.reliv.length && e.statut === "livre" && e.id % 10 === 9) mkR(e.id % 3 === 0 ? "Destinataire inconnu à l'adresse" : "Délai de garde dépassé en point relais", "livre", e.id % 20 === 9 ? { k: "oui", p: e.ht } : { k: "non", why: RL_WHY[2] }, "19/11 10:" + String(10 + e.id % 40));
     if (e.id === 57) { x.reliv[0].fact = { k: "oui", p: 18 }; x.reliv[0].opts.push({ l: "Livraison avant 12h", p: 8, q: 1, by: x.reliv[0].by, d: x.reliv[0].d, note: "Reprise de l'envoi initial" }); }
     if (e.id === 47) x.reliv[0].opts.push({ l: "Livraison le samedi", p: 12, q: 1, by: x.reliv[0].by, d: x.reliv[0].d, note: "Demandé par le client pour la relivraison" });
     { const seen = new Set(); x.options = x.options.filter(o => !seen.has(okey(o.l)) && seen.add(okey(o.l))); x.reliv.forEach(r => { const t = new Set(r.opts.length && sameNo(r) ? takenEnv(x, r) : []); r.opts = r.opts.filter(o => !t.has(okey(o.l)) && t.add(okey(o.l))); }); }
@@ -717,7 +724,7 @@
         ${lk ? "" : f ? `<div class="rl-form">
           <div class="sub-h">${state.rlKind === "retour" ? "Nouveau retour à l'expéditeur" : "Nouvelle relivraison"}</div>
           <div class="rl-grid">
-            <label>Motif <select class="fld" id="rl-m">${(state.rlKind === "retour" ? RT_MOTIFS : RL_MOTIFS).map(m => `<option>${m}</option>`).join("")}</select></label>
+            <label>Motif <select class="fld" id="rl-m">${state.rlKind === "retour" ? RT_GROUPS.map(([g, l]) => `<optgroup label="${g}">${l.map(m => `<option>${esc(m)}</option>`).join("")}</optgroup>`).join("") : RL_MOTIFS.map(m => `<option>${m}</option>`).join("")}</select></label>
             <label>${state.rlKind === "retour" ? "N° de retour" : "Nouveau bordereau"} <input class="fld" id="rl-b" placeholder="Vide = même n° de bordereau"></label>
             <label>${state.rlKind === "retour" ? "Retour vers" : "Adresse"} <select class="fld" id="rl-a">${state.rlKind === "retour" ? `<option value="">Expéditeur — ${esc(e.dep.nom)}, ${esc(e.dep.ville)}</option><option value="new">Autre adresse…</option>` : `<option value="">Même adresse</option><option value="new">Nouvelle adresse…</option>`}</select></label>
             <label id="rl-a2w" hidden>Nouvelle adresse <input class="fld" id="rl-a2" placeholder="Rue, CP, ville"></label>
