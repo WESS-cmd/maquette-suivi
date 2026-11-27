@@ -127,9 +127,9 @@ window.CARRIERS = {
   const slots = ["09:00–12:00", "10:00–13:00", "13:00–17:00", "14:00–18:00", "08:30–12:30"];
   const enl = [];
   // états : a_reserver | reserve | ramasse | echec
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 96; i++) {
     const k = i % lieux.length;
-    const off = Math.floor(rnd() * 7) - 3; // -3 .. +3 jours
+    const off = i < 46 ? Math.floor(rnd() * 7) - 3 : Math.floor(rnd() * 27) - 12; // -12 .. +14 jours
     const dt = new Date(NOW); dt.setDate(NOW.getDate() + off); dt.setHours(0, 0, 0, 0);
     if (dt.getDay() === 0) dt.setDate(dt.getDate() + 1);
     if (dt.getDay() === 6) dt.setDate(dt.getDate() + 2);

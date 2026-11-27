@@ -959,7 +959,8 @@
     const c = ECOLS.find(c => c.k === est.sort.k), d = est.sort.dir;
     return l.sort((a, b) => d * c.s(a, b) || (a.date - b.date) || a.slot.localeCompare(b.slot));
   }
-  function setRange(f, t) { est.from = f; est.to = t || f; est.picking = false; }
+  function setRange(f, t) { est.from = f; est.to = t || f; est.picking = false; syncStrip(); }
+  function syncStrip() { if (!est.from || est.strip == null) return; const end = addD(est.strip, 11); if (est.from < est.strip || est.from > end) est.strip = addD(est.from, -((est.from.getDay() + 6) % 7)); }
   function calLabel() {
     if (!est.from) return "Toutes les dates";
     if (sameDay(est.from, est.to)) return sameDay(est.from, NOW) ? "Aujourd'hui · " + fD(est.from) : "Le " + fD(est.from);
@@ -992,7 +993,7 @@
     root.querySelectorAll("[data-pre]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const v = b.dataset.pre; if (v === "all") { est.from = est.to = null; est.picking = false; } else setRange(...pre[+v]); renderEnl(); again(); });
     root.querySelectorAll("[data-cm]").forEach(b => b.onclick = ev => { ev.stopPropagation(); est.calM += +b.dataset.cm; again(); });
     root.querySelectorAll("[data-cd]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const d = new Date(+b.dataset.cd);
-      if (est.picking && est.from) { if (d < est.from) { est.to = est.from; est.from = d; } else est.to = d; est.picking = false; } else { est.from = est.to = d; est.picking = true; }
+      if (est.picking && est.from) { if (d < est.from) { est.to = est.from; est.from = d; } else est.to = d; est.picking = false; } else { est.from = est.to = d; est.picking = true; } syncStrip();
       renderEnl(); again(); });
     const fi = root.querySelector("#cal-f"), ti = root.querySelector("#cal-t");
     const upd = () => { const f = fi.value ? new Date(fi.value + "T00:00") : null, t = ti.value ? new Date(ti.value + "T00:00") : f; if (!f) { est.from = est.to = null; } else { est.from = f; est.to = t < f ? f : t; } est.picking = false; renderEnl(); again(); };
@@ -1073,16 +1074,21 @@
     $("#carrier-chips-e").classList.toggle("has-sel", est.carriers.size > 0);
     $$("#carrier-chips-e .ctog").forEach(b => b.onclick = () => { const c = b.dataset.c; if (!c) est.carriers.clear(); else est.carriers.has(c) ? est.carriers.delete(c) : est.carriers.add(c); renderEnl(); });
 
-    // jours (raccourcis du calendrier)
-    const days = [...new Set(ENLEVEMENTS.map(x => x.date.toDateString()))].map(s => new Date(s)).sort((a, b) => a - b);
+    // jours : bandeau continu (lun → sam), navigation par semaine
     const b0 = ENLEVEMENTS.filter(x => pass(x));
-    $("#days").innerHTML = `<button class="day ${est.from ? "" : "on"}" data-d="all"><div class="d1">Période</div><div class="d2">Tous</div><div class="d3">${b0.length} enlèv.</div></button>` + days.map(d => {
+    if (est.strip == null) est.strip = addD(today0, -((today0.getDay() + 6) % 7) - 7);
+    const sdays = []; for (let d = new Date(est.strip); sdays.length < 10; d = addD(d, 1)) if (d.getDay() !== 0 && (d.getDay() !== 6 || b0.some(x => sameDay(x.date, d)))) sdays.push(d);
+    const prevN = b0.filter(x => x.date < sdays[0]).length, nextN = b0.filter(x => x.date > sdays[sdays.length - 1]).length;
+    $("#days").innerHTML = `<button class="day ${est.from ? "" : "on"}" data-d="all"><div class="d1">Période</div><div class="d2">Tous</div><div class="d3">${b0.length} enlèv.</div></button>
+      <button class="day-nav" data-sn="-7" title="Semaine précédente">‹<small>${prevN || ""}</small></button>` + sdays.map(d => {
       const its = b0.filter(x => sameDay(x.date, d)), late = its.filter(isLate).length;
-      const lbl = sameDay(d, NOW) ? "Aujourd'hui" : d.toLocaleDateString("fr-FR", { weekday: "long" });
+      const lbl = sameDay(d, NOW) ? "Auj." : d.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "");
       const on = est.from && sameDay(est.from, d) && sameDay(est.to, d), inR = est.from && !on && d >= est.from && d <= est.to;
-      return `<button class="day ${on ? "on" : ""} ${inR ? "inr" : ""} ${late ? "late" : ""}" data-d="${d.getTime()}"><div class="d1">${lbl}</div><div class="d2">${d.getDate()} ${d.toLocaleDateString("fr-FR", { month: "short" })}</div><div class="d3">${late ? late + " non effectué" + (late > 1 ? "s" : "") : its.length + " enlèv."}</div></button>`;
-    }).join("");
+      return `${d.getDay() === 1 && d > sdays[0] ? `<span class="day-sep" title="Semaine ${d.getDate()} ${d.toLocaleDateString("fr-FR", { month: "short" })}"></span>` : ""}<button class="day ${on ? "on" : ""} ${inR ? "inr" : ""} ${late ? "late" : ""} ${its.length ? "" : "empty"} ${sameDay(d, NOW) ? "today" : ""}" data-d="${d.getTime()}"><div class="d1">${lbl}</div><div class="d2">${d.getDate()} ${d.toLocaleDateString("fr-FR", { month: "short" })}</div><div class="d3" title="${its.length} enlèvement(s)${late ? " · " + late + " non effectué(s)" : ""}">${late ? late + " non eff." : its.length ? its.length + " enlèv." : "—"}</div></button>`;
+    }).join("") + `<button class="day-nav" data-sn="7" title="Semaine suivante">›<small>${nextN || ""}</small></button><button class="btn sm day-today" data-sn="0">Aujourd'hui</button><button class="btn sm day-cal" id="day-cal" title="Ouvrir le calendrier — choisir n'importe quelle date ou période">Calendrier</button>`;
     $$("#days .day").forEach(b => b.onclick = () => { if (b.dataset.d === "all") { est.from = est.to = null; est.picking = false; } else setRange(new Date(+b.dataset.d)); renderEnl(); });
+    $$("#days [data-sn]").forEach(b => b.onclick = () => { const n = +b.dataset.sn; est.strip = n ? addD(est.strip, n) : addD(today0, -((today0.getDay() + 6) % 7) - 7); if (!n) { setRange(today0); } renderEnl(); });
+    $("#day-cal").onclick = ev => { ev.stopPropagation(); openPop("cal", $("#cal-btn")); };
     $("#cal-l").textContent = calLabel(); $("#cal-btn").classList.toggle("act", !!est.from);
 
     const l = elist();
